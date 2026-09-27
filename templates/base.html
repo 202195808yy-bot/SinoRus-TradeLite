@@ -1,0 +1,70 @@
+{% load static %}<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ page.ru }}{% endblock %} — TradeHub</title>
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="{% url 'portal:index' %}">
+    <span class="brand-mark">TH</span>
+    <span class="brand-text">
+      <strong>TradeHub</strong>
+      <em>Платформа совместной работы · Россия — Китай</em>
+    </span>
+  </a>
+  <nav class="topnav">
+    <a href="{% url 'portal:about' %}">О платформе</a>
+    <a href="{% url 'portal:help' %}">Справка</a>
+    <a href="{% url 'portal:dashboard' %}">Панель</a>
+    <a class="btn btn-primary" href="{% url 'portal:login' %}">Вход</a>
+  </nav>
+</header>
+
+<div class="layout">
+
+  <aside class="sidebar">
+    <p class="sidebar-title">Структура приложения</p>
+    {% for module in nav_modules %}
+      <div class="nav-group">
+        <p class="nav-group-title">
+          <span class="chip">{{ module.code }}</span>{{ module.ru }}
+          <em>{{ module.zh }}</em>
+        </p>
+        <ul>
+          {% for item in module.pages %}
+            <li class="{% if item.name == page.name %}is-active{% endif %}">
+              <a href="{{ item.url }}">{{ item.ru }}</a>
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endfor %}
+  </aside>
+
+  <main class="content">
+    {% block breadcrumbs %}
+    <p class="crumbs">
+      <a href="{% url 'portal:index' %}">Главная</a>
+      <span>/</span>
+      <span class="chip">{{ page.module }}</span>
+      <span>{{ page.ru }}</span>
+    </p>
+    {% endblock %}
+    {% block content %}{% endblock %}
+  </main>
+
+</div>
+
+<footer class="footer">
+  <p>Курсовой проект · дисциплина «Разработка веб-приложений на Python» ·
+     Владимирский государственный университет, {{ "2026" }} г.</p>
+  <p class="muted">Прототип интерфейса: маршрутизация и шаблонизация. Бизнес-логика
+     и модели данных реализуются на последующих этапах.</p>
+</footer>
+
+</body>
+</html>

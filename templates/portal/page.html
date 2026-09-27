@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block content %}
+<article class="page">
+
+  <header class="page-head">
+    <div>
+      <p class="page-module">
+        <span class="chip">{{ page.module }}</span>
+        {{ page.zh }}
+      </p>
+      <h1>{{ page.ru }}</h1>
+    </div>
+    <span class="badge badge-proto">Прототип</span>
+  </header>
+
+  <dl class="meta-grid">
+    <div>
+      <dt>Адрес страницы</dt>
+      <dd><code>{{ page_url }}</code></dd>
+    </div>
+    <div>
+      <dt>Имя маршрута</dt>
+      <dd><code>portal:{{ page.name }}</code></dd>
+    </div>
+    <div>
+      <dt>Представление</dt>
+      <dd><code>portal.views.{{ page.view }}</code></dd>
+    </div>
+    <div>
+      <dt>Режим доступа</dt>
+      <dd>
+        {% if page.access == "public" %}Общедоступная
+        {% elif page.access == "auth" %}Требуется вход
+        {% else %}Ограничено ролью{% endif %}
+      </dd>
+    </div>
+    {% if page.params %}
+    <div class="span-2">
+      <dt>Параметры маршрута</dt>
+      <dd><code>{{ page.params }}</code></dd>
+    </div>
+    {% endif %}
+  </dl>
+
+  <section class="block">
+    <h2>Назначение страницы</h2>
+    <p>{{ page.purpose }}</p>
+  </section>
+
+  <section class="block">
+    <h2>Основное содержание</h2>
+    <p>{{ page.content }}</p>
+  </section>
+
+  <section class="block block-placeholder">
+    <h2>Область макета</h2>
+    <p class="muted">
+      Здесь размещается макет страницы. На текущем этапе страница служит
+      прототипом: проверены маршрут, шаблон и передача контекста.
+    </p>
+    <div class="skeleton">
+      <div class="sk-row sk-40"></div>
+      <div class="sk-row sk-80"></div>
+      <div class="sk-row sk-60"></div>
+    </div>
+  </section>
+
+</article>
+{% endblock %}

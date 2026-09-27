@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block content %}
+<article class="page">
+
+  <header class="page-head">
+    <div>
+      <p class="page-module"><span class="chip">{{ page.module }}</span>{{ page.zh }}</p>
+      <h1>{{ page.ru }}</h1>
+    </div>
+    <span class="badge badge-proto">Прототип</span>
+  </header>
+
+  <section class="block">
+    <h2>Сводные карточки</h2>
+    <div class="stat-row">
+      <div class="stat">
+        <span class="stat-value">12</span>
+        <span class="stat-label">Задач на сегодня</span>
+      </div>
+      <div class="stat stat-warn">
+        <span class="stat-value">3</span>
+        <span class="stat-label">Заказа с инцидентом</span>
+      </div>
+      <div class="stat stat-danger">
+        <span class="stat-value">5</span>
+        <span class="stat-label">Сертификатов истекает</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value">28</span>
+        <span class="stat-label">Заказов в исполнении</span>
+      </div>
+    </div>
+    <p class="muted">
+      Значения приведены для демонстрации макета; источник данных —
+      модели приложения, разрабатываемые на следующем этапе.
+    </p>
+  </section>
+
+  <section class="block">
+    <h2>Распределение заказов по состояниям</h2>
+    <table class="table">
+      <thead>
+        <tr><th>Состояние</th><th>Китайское название</th><th>Заказов</th><th>Доля</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>В производстве</td><td>备货中</td><td>9</td><td>32 %</td></tr>
+        <tr><td>Отправлено</td><td>已发运</td><td>7</td><td>25 %</td></tr>
+        <tr><td>В пути</td><td>运输在途</td><td>6</td><td>21 %</td></tr>
+        <tr><td>На таможне</td><td>清关中</td><td>4</td><td>14 %</td></tr>
+        <tr><td>Доставка</td><td>派送中</td><td>2</td><td>8 %</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="block">
+    <h2>Переходы к модулям</h2>
+    <div class="link-grid">
+      {% for module in nav_modules %}
+        {% if module.code != "M0" %}
+        <a class="link-tile" href="{{ module.pages.0.url }}">
+          <span class="chip">{{ module.code }}</span>
+          <strong>{{ module.ru }}</strong>
+          <em>{{ module.zh }} · {{ module.pages|length }} стр.</em>
+        </a>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </section>
+
+</article>
+{% endblock %}
