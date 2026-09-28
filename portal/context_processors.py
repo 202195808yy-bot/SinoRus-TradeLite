@@ -19,11 +19,12 @@ def _resolve_url(page):
 def navigation(request):
     """Формирует структуру боковой навигации по модулям M0..M11."""
     modules = []
-    for code, ru, zh in MODULES:
+    for code, ru, zh, en in MODULES:
         modules.append({
             "code": code,
             "ru": ru,
             "zh": zh,
+            "en": en,
             "pages": [{**p, "url": _resolve_url(p)} for p in pages_of(code)],
         })
     return {
