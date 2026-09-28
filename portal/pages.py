@@ -183,7 +183,9 @@ PAGES = [
                     "/ ИНН, юридический адрес, контакты, банковские "
                     "реквизиты; китайские и российские поля заполняются "
                     "рядом, незаполненные пункты подсвечиваются.",
-         content_zh="企业名称、统一社会信用代码/ИНН、注册地址、联系方式、银行信息；中俄双语字段并排填写，缺失项高亮提示补录。",
+         content_zh="企业名称、统一社会信用代码 / ИНН（俄罗斯纳税人识别号）、"
+                    "注册地址、联系方式、银行信息；中俄双语字段并排填写，"
+                    "缺失项高亮提示补录。",
          content_en="Company name, unified social credit code / INN, "
                     "registered address, contact details and bank "
                     "information; Chinese and Russian fields are filled in "
