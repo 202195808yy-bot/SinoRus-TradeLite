@@ -9,11 +9,20 @@
 
 Результат доступен представлениям и шаблонам как ``request.LANG``.
 
-Middleware ставится сразу после ``SessionMiddleware`` — иначе обращение
-к ``request.session`` приведёт к ошибке.
+Дополнительно активируется локаль Django (``translation.activate``).
+Благодаря этому административная панель — её переводы входят в поставку
+Django — переключается тем же выбором языка, хотя собственных шаблонов
+у неё нет.
+
+Порядок в ``MIDDLEWARE``: **после** ``SessionMiddleware`` (нужен доступ
+к ``request.session``) и **после** ``LocaleMiddleware`` — иначе тот
+перезапишет активированную локаль, выбрав её по cookie и заголовку
+``Accept-Language``.
 """
 
-from .i18n import DEFAULT_LANG, normalize
+from django.utils import translation
+
+from .i18n import DEFAULT_LANG, LANG_DJANGO, normalize
 
 
 class LanguageMiddleware:
@@ -30,4 +39,9 @@ class LanguageMiddleware:
         else:
             lang = normalize(request.session.get("lang")) or DEFAULT_LANG
         request.LANG = lang
+
+        code = LANG_DJANGO[lang]
+        request.LANGUAGE_CODE = code
+        translation.activate(code)
+
         return self.get_response(request)

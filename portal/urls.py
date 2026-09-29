@@ -13,6 +13,11 @@ from . import views
 app_name = "portal"
 
 urlpatterns = [
+    # ------------------------------------------------- переключение языка
+    # Отдельный маршрут, а не ?lang=: в административной панели неизвестный
+    # параметр запроса трактуется как фильтр списка и даёт лишний редирект.
+    path("lang/<str:code>/", views.set_language_view, name="set_language"),
+
     # ---------------------------------------------------------- M0 公共页面
     path("", views.index_view, name="index"),
     path("about/", views.about_view, name="about"),

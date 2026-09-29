@@ -37,6 +37,10 @@ LANG_SHORT = {"ru": "RU", "zh": "中文", "en": "EN"}
 #: Значения атрибута ``lang`` тега ``<html>``.
 LANG_HTML = {"ru": "ru", "zh": "zh-Hans", "en": "en"}
 
+#: Коды локалей Django — для административной панели, переводы которой
+#: входят в поставку Django. Позволяют переключать и её тем же выбором.
+LANG_DJANGO = {"ru": "ru", "zh": "zh-hans", "en": "en"}
+
 
 def normalize(code):
     """Приводит код языка из запроса к одному из ``LANGS`` (или None)."""
@@ -124,12 +128,28 @@ def label_strings(blocks):
 
 
 def switch_urls(request):
-    """Адреса переключения языка для текущей страницы (сохраняет параметры)."""
+    """Адреса переключения языка для текущей страницы.
+
+    Ведёт на отдельный маршрут ``portal:set_language`` с возвратом на
+    текущий адрес. Параметр ``?lang=`` в самом адресе для этого не годится:
+    в административной панели Django считает неизвестный параметр фильтром
+    списка и добавляет лишнее перенаправление. При этом ``?lang=`` в
+    адресах приложения по-прежнему поддерживается (см. middleware) — это
+    удобно для ссылок вида ``/?lang=zh``.
+    """
+    from urllib.parse import quote
+
+    from django.urls import reverse
+
     params = request.GET.copy()
+    params.pop("lang", None)                 # не тащим прошлый выбор
+    query = params.urlencode()
+    current = request.path + ("?" + query if query else "")
     out = {}
     for code in LANGS:
-        params["lang"] = code
-        out[code] = request.path + "?" + params.urlencode()
+        out[code] = "%s?next=%s" % (
+            reverse("portal:set_language", kwargs={"code": code}),
+            quote(current, safe=""))
     return out
 
 

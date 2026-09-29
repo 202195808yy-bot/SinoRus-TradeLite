@@ -3,15 +3,18 @@
 
 Проверяются:
 
-* выбор языка: ``?lang=`` -> сессия -> язык по умолчанию;
+* выбор языка: ``?lang=`` / маршрут ``/lang/<код>/`` -> сессия ->
+  язык по умолчанию;
 * перевод названий и описаний страниц из реестра ``portal/pages.py``;
 * перевод подписей блоков данных (заголовки таблиц, подписи KPI);
 * полнота словарей ``portal/labels.py`` и ``portal/i18n.py``;
+* переключение административной панели тем же выбором языка;
 * языковая чистота: русская версия без иероглифов, китайская — без
   кириллицы (кроме общепринятых обозначений).
 """
 
 import re
+from urllib.parse import quote
 
 from django.core.management import call_command
 from django.test import Client, TestCase
@@ -77,9 +80,30 @@ class LanguageSelectionTest(TestCase):
         for code in LANGS:
             self.assertIn(LANG_SHORT[code], html)
         self.assertIn('class="lang-btn is-active"', html)
-        # переключатель сохраняет текущий адрес
-        self.assertIn("/orders/?lang=ru", html)
-        self.assertIn("/orders/?lang=en", html)
+        # переключатель ведёт на отдельный маршрут и сохраняет текущий адрес
+        self.assertIn("/lang/ru/?next=%2Forders%2F", html)
+        self.assertIn("/lang/en/?next=%2Forders%2F", html)
+
+    def test_switch_endpoint_remembers_and_returns(self):
+        """Маршрут переключения запоминает язык и возвращает на исходный адрес."""
+        response = self.client.get("/lang/en/?next=" + quote("/orders/", safe=""))
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/orders/")
+        self.assertEqual(self.client.session["lang"], "en")
+        self.assertEqual(self.client.get("/orders/").context["LANG"], "en")
+
+    def test_switch_endpoint_rejects_external_redirect(self):
+        """Защита от открытого перенаправления: чужой адрес заменяется на «/»."""
+        for bad in ("//evil.example.com/", "https://evil.example.com/", "evil"):
+            response = self.client.get(
+                "/lang/ru/?next=" + quote(bad, safe=""))
+            self.assertEqual(response["Location"], "/", bad)
+
+    def test_switch_endpoint_ignores_unknown_code(self):
+        """Неизвестный код языка не ломает выбор: остаётся прежний."""
+        self.client.get("/lang/zh/?next=%2Forders%2F")
+        self.client.get("/lang/de/?next=%2Forders%2F")
+        self.assertEqual(self.client.session["lang"], "zh")
 
     def test_html_lang_attribute_follows_choice(self):
         self.assertIn('lang="ru"', self.client.get("/").content.decode())
@@ -234,6 +258,114 @@ class InterfaceTextTest(TestCase):
                      if cyr_words(row[1]) - CYR_ALLOWED_IN_ZH]
         self.assertEqual(offenders, [],
                          f"кириллица в китайских текстах: {offenders}")
+
+
+class AdminLanguageTest(TestCase):
+    """Административная панель переключается тем же выбором языка.
+
+    Панель использует шаблоны и переводы Django, поэтому здесь проверяется,
+    что ``LanguageMiddleware`` активирует нужную локаль и что переключатель
+    языка отрисован.
+
+    Переключатель ведёт на маршрут ``portal:set_language``, а не на
+    ``?lang=``: в списках панели Django считает неизвестный параметр
+    фильтром и отвечает лишним перенаправлением (см.
+    ``test_admin_list_page_rejects_lang_query``).
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.contrib.auth import get_user_model
+        call_command("seed_demo", verbosity=0)
+        cls.root = get_user_model().objects.create_superuser(
+            username="root", email="root@example.com",
+            password="admin-test-pass")
+
+    def setUp(self):
+        self.client = Client(HTTP_HOST="localhost")
+        self.client.force_login(self.root)
+
+    def switch(self, code, target="/admin/"):
+        """Переключение языка так же, как это делает ссылка в шапке панели."""
+        return self.client.get(
+            "/lang/%s/?next=%s" % (code, quote(target, safe="")))
+
+    def test_admin_index_renders(self):
+        self.assertEqual(self.client.get("/admin/").status_code, 200)
+
+    def test_admin_follows_language(self):
+        """Интерфейс панели переводится вместе с выбором языка."""
+        # Django переводит «Add» как Добавить / 增加 / Add
+        expected = {"ru": "Добавить", "zh": "增加", "en": "Add"}
+        for code in LANGS:
+            self.switch(code)
+            response = self.client.get("/admin/")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.context["LANG"], code)
+            html = response.content.decode("utf-8")
+            self.assertIn(expected[code], html,
+                          f"{code}: панель не переведена")
+
+    def test_admin_html_lang_attribute(self):
+        expected = {"ru": "ru", "zh": "zh-hans", "en": "en"}
+        for code in LANGS:
+            self.switch(code)
+            html = self.client.get("/admin/").content.decode()
+            self.assertIn(f'<html lang="{expected[code]}"', html)
+
+    def test_admin_switcher_is_rendered(self):
+        html = self.client.get("/admin/").content.decode()
+        self.assertIn("admin-lang", html)
+        self.assertIn("/lang/ru/?next=%2Fadmin%2F", html)
+        self.assertIn("/lang/en/?next=%2Fadmin%2F", html)
+        self.assertIn("is-active", html)
+
+    def test_admin_switcher_link_round_trip(self):
+        """Ссылка из шапки действительно переключает язык и возвращает назад."""
+        html = self.client.get("/admin/").content.decode()
+        match = re.search(r'href="(/lang/zh/\?next=[^"]+)"', html)
+        self.assertIsNotNone(match, "ссылка переключателя не найдена")
+        response = self.client.get(match.group(1).replace("&amp;", "&"))
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/admin/")
+        self.assertEqual(self.client.session["lang"], "zh")
+
+    def test_admin_switcher_on_login_page(self):
+        """На странице входа переключатель тоже есть (блок branding)."""
+        client = Client(HTTP_HOST="localhost")       # анонимный
+        html = client.get("/admin/login/").content.decode()
+        self.assertIn("admin-lang", html)
+        self.assertIn("/lang/ru/?next=%2Fadmin%2Flogin%2F", html)
+
+    def test_admin_language_is_remembered(self):
+        self.switch("en")
+        self.assertEqual(self.client.session["lang"], "en")
+        self.assertEqual(self.client.get("/admin/").context["LANG"], "en")
+
+    def test_admin_deep_pages_keep_working(self):
+        """Выбранный язык не мешает разделам панели (адрес без ?lang=)."""
+        self.switch("zh")
+        for url in ("/admin/portal/order/", "/admin/portal/order/1/change/",
+                    "/admin/portal/good/", "/admin/auth/user/"):
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200, url)
+
+    def test_admin_list_page_rejects_lang_query(self):
+        """``?lang=`` в списке панели Django принимает за фильтр.
+
+        Это и есть причина отдельного маршрута переключения: запрос
+        ``/admin/portal/order/?lang=zh`` отвечает перенаправлением с
+        пометкой об ошибке (``?e=1``), а не страницей списка.
+        """
+        response = self.client.get("/admin/portal/order/?lang=zh")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("e=1", response["Location"])
+
+    def test_portal_and_admin_share_the_choice(self):
+        """Один и тот же выбор языка действует и в приложении, и в панели."""
+        self.client.get("/?lang=zh")
+        self.assertEqual(self.client.get("/admin/").context["LANG"], "zh")
+        self.assertEqual(self.client.get("/orders/").context["LANG"], "zh")
 
 
 class LabelCoverageTest(TestCase):

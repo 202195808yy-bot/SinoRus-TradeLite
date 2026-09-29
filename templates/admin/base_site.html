@@ -1,0 +1,57 @@
+{% extends "admin/base.html" %}
+{% load i18n %}
+
+{% comment %}
+Переопределение заголовка панели: добавлен переключатель языка.
+Сам переключатель — в admin/_lang_switch.html, язык определяет
+portal.middleware.LanguageMiddleware (?lang= / /lang/<код>/ -> сессия).
+
+Наследуем admin/base.html, а не admin/base_site.html: каталог templates/
+проекта стоит в DIRS и имеет приоритет, поэтому «extends admin/base_site.html»
+из этого же файла разрешился бы в себя (бесконечная рекурсия). Блок
+заголовка поэтому задан явно — он же был в штатном base_site.html.
+
+Блоки branding и nav-global объявлены в admin/base.html, так что перекрытие
+здесь действительно отрисовывается. На странице входа штатный login.html
+очищает nav-global — там переключатель приходит из branding.
+{% endcomment %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <style>
+    /* Шапка: заголовок слева, ссылки пользователя и переключатель справа */
+    #header { justify-content: flex-start; }
+    #branding { flex: 1; align-items: center; }
+    #user-tools { margin-left: 20px; }
+    #nav-global { margin-left: 14px; }
+
+    .admin-lang { display: flex; align-items: center; gap: 2px;
+                  margin-left: auto; }
+    .admin-lang a {
+      padding: 3px 9px; border-radius: 4px; font-size: 12px;
+      line-height: 1.4; white-space: nowrap; text-decoration: none;
+      color: var(--header-link-color, #ffc);
+    }
+    .admin-lang a:hover { background: rgba(255, 255, 255, .18);
+                          text-decoration: none; }
+    .admin-lang a.is-active {
+      background: var(--header-link-color, #ffc);
+      color: var(--header-bg, #417690); font-weight: 600;
+    }
+    .admin-lang a.is-active:hover { background: #fff; color: #417690; }
+  </style>
+{% endblock %}
+
+{% block branding %}
+<h1 id="site-name"><a href="{% url 'admin:index' %}">{{ site_header|default:_('Django administration') }}</a></h1>
+{% if user.is_anonymous %}
+  {% include "admin/color_theme_toggle.html" %}
+  {% include "admin/_lang_switch.html" %}
+{% endif %}
+{% endblock %}
+
+{% block nav-global %}
+  {% if user.is_authenticated %}{% include "admin/_lang_switch.html" %}{% endif %}
+{% endblock %}

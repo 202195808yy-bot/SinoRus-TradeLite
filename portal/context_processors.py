@@ -32,6 +32,24 @@ def navigation(request):
     #: второй язык названия (для двуязычной платформы показываем оба)
     alt = "ru" if lang == "zh" else "zh"
 
+    urls = switch_urls(request)
+    context = {
+        "LANG": lang,
+        "LANG_HTML": LANG_HTML[lang],
+        "ui": ui(lang),
+        "langs": [{"code": code,
+                   "label": LANG_LABELS[code],
+                   "short": LANG_SHORT[code],
+                   "url": urls[code],
+                   "active": code == lang} for code in LANGS],
+    }
+
+    # Административной панели навигация приложения не нужна — не строим её,
+    # чтобы не обращаться к urlconf 43 раза на каждый запрос /admin/.
+    # Переключатель языка там работает через тот же контекст выше.
+    if request.path.startswith("/admin/"):
+        return context
+
     modules = []
     for code, ru, zh, en in MODULES:
         modules.append({
@@ -46,17 +64,7 @@ def navigation(request):
                       for p in pages_of(code)],
         })
 
-    urls = switch_urls(request)
-    return {
-        "nav_modules": modules,
-        "page_index": [{**p, "title": title_of(p, lang),
-                        "url": _resolve_url(p, lang)} for p in PAGES],
-        "LANG": lang,
-        "LANG_HTML": LANG_HTML[lang],
-        "ui": ui(lang),
-        "langs": [{"code": code,
-                   "label": LANG_LABELS[code],
-                   "short": LANG_SHORT[code],
-                   "url": urls[code],
-                   "active": code == lang} for code in LANGS],
-    }
+    context["nav_modules"] = modules
+    context["page_index"] = [{**p, "title": title_of(p, lang),
+                              "url": _resolve_url(p, lang)} for p in PAGES]
+    return context

@@ -13,9 +13,27 @@ from django.contrib.auth import logout as auth_logout
 from django.shortcuts import redirect, render
 
 from .datasets import provider_for
-from .i18n import DEFAULT_LANG, translate_blocks
+from .i18n import DEFAULT_LANG, normalize, translate_blocks
 from .pages import (PAGE_BY_NAME, PAGES, content_of, module_name, params_of,
                     purpose_of, title_of)
+
+
+def set_language_view(request, code):
+    """Запоминает выбранный язык и возвращает на исходную страницу.
+
+    Отдельный маршрут нужен потому, что параметр ``?lang=`` в адресах
+    административной панели Django воспринимает как неизвестный фильтр
+    списка и отвечает лишним перенаправлением. Здесь же адрес остаётся
+    чистым, а выбор сохраняется в сессии.
+    """
+    lang = normalize(code)
+    if lang:
+        request.session["lang"] = lang
+    target = request.GET.get("next") or "/"
+    # защита от открытого перенаправления: только собственные пути
+    if not target.startswith("/") or target.startswith("//"):
+        target = "/"
+    return redirect(target)
 
 
 def _lang(request):

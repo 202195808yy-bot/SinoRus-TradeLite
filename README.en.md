@@ -121,19 +121,22 @@ course_project/
 │   ├── context_processors.py  module navigation and interface language
 │   ├── i18n.py                language switching: interface texts, helpers
 │   ├── labels.py              block label dictionary (385 entries, ru→zh/en)
-│   ├── middleware.py          language selection: ?lang= → session
+│   ├── middleware.py          language selection: ?lang= / /lang/<code>/ → session
 │   ├── langcheck.py           translation dictionary self-check
 │   ├── datasets.py            SINGLE PAGE DATA REGISTRY: context providers
 │   ├── models.py              application models: 52 models, 9 classes (stage 3)
 │   ├── admin.py               model registration, tabular inlines
-│   ├── tests.py               20 model tests: numbering, properties, constraints
+│   ├── tests.py               23 model tests: numbering, properties, constraints
 │   ├── tests_views.py         17 page and data tests (stage 4)
-│   ├── tests_i18n.py          25 tests: language switching and purity
+│   ├── tests_i18n.py          38 tests: language switching and purity
 │   ├── templatetags/          template filters (tr, fmt)
 │   ├── management/commands/seed_demo.py   idempotent demo data loader
 │   └── migrations/
 ├── templates/
 │   ├── base.html              base template
+│   ├── admin/
+│   │   ├── base_site.html     panel header: language switcher
+│   │   └── _lang_switch.html  the switcher itself (RU · 中文 · EN)
 │   └── portal/
 │       ├── index.html         landing page
 │       ├── page.html          universal page template
@@ -195,7 +198,7 @@ Shared mechanisms: the `TimeStampedModel` abstract model with time stamps,
 ```bash
 python manage.py migrate           # create 53 tables
 python manage.py seed_demo         # demo deal chain
-python manage.py test portal       # 65 tests: models, pages, languages
+python manage.py test portal       # 78 tests: models, pages, languages
 ```
 
 The `seed_demo` command is idempotent (a second run creates no duplicates)
@@ -256,7 +259,7 @@ from the code.
 
 ```bash
 python tools/check_data.py     # 37 pages with data, 6 prototypes
-python manage.py test portal   # 65 tests: models, pages, languages
+python manage.py test portal   # 78 tests: models, pages, languages
 ```
 
 ## Interface language
@@ -284,6 +287,22 @@ numbers, dates) and are not translated: the dictionary covers labels only.
 /?lang=zh              # Chinese interface
 /orders/?lang=en       # English on the order list page
 ```
+
+The same choice also applies to the administration panel at `/admin/`: its
+header carries the `RU · 中文 · EN` switcher (on the login page it sits next
+to the title), and the panel itself is translated by Django's built-in
+translations. The switcher links point to a dedicated route:
+
+```bash
+/lang/zh/?next=%2Fadmin%2F   # Chinese panel, returning to /admin/
+```
+
+A dedicated route is required because Django treats the `?lang=` parameter
+in the panel's list views as an unknown filter and answers with a spurious
+redirect (`/admin/portal/order/?lang=zh` → `302` to `?e=1`). The
+`portal:set_language` route keeps the return address in `next`, accepts
+own paths only (open-redirect protection) and remains compatible with the
+`?lang=` parameter in application URLs.
 
 Page titles and block labels come from the same source as the stage 1–4
 documents, so the interface and the explanatory notes cannot diverge.
@@ -331,7 +350,7 @@ python tools/check_data.py      # pages wired to models
 python tools/check_lang.py      # interface translation completeness
 python tools/smoke_test.py      # smoke test: request every page
 python tools/gen_docs.py        # refresh docs/pages.{ru,zh,en}.md
-python manage.py test portal    # 65 tests: models, pages, languages
+python manage.py test portal    # 78 tests: models, pages, languages
 ```
 
 ## Domain boundaries
