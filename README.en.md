@@ -89,7 +89,8 @@ course_project/
 │   ├── pages.en.md            same in English (generated)
 │   ├── Предметная_область_и_сущности.docx      stage 1 document, ПЗ (32 pp., 56 entities, 9 classes)
 │   ├── Предметная_область_и_сущности_CN.docx   same in Chinese (26 pp.)
-│   ├── Описание_страниц_приложения.docx        stage 2 document (ПЗ, 28 pp.)
+│   ├── Описание_страниц_приложения.docx        stage 2 document, ПЗ (31 pp., 43 pages, 12 modules)
+│   ├── Описание_страниц_приложения_CN.docx     same in Chinese (27 pp.)
 │   ├── Модели_приложения.docx                  stage 3 document, ПЗ (29 pp., 52 models, 23 constraints)
 │   ├── Модели_приложения_CN.docx               same in Chinese (28 pp.)
 │   ├── Представления_и_данные.docx             stage 4 document, ПЗ (26 pp., 43 pages, 45 models)
@@ -154,6 +155,12 @@ languages (Russian, Chinese, English); route parameter descriptions are
 dicts keyed by language. Values are read through the helpers `title_of()`,
 `purpose_of()`, `content_of()`, `params_of()` and `module_name()`, so adding
 a fourth language requires no changes in the consumers.
+
+The stage 2 document is `docs/Описание_страниц_приложения.docx` (ПЗ, 31
+pp., 43 pages, 12 modules) with a Chinese counterpart
+`docs/Описание_страниц_приложения_CN.docx` (27 pp.). The page tables are
+built directly from the registry, so the list in the document and in the
+code agree by construction.
 
 ## Application models
 
