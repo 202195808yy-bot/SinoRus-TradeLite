@@ -133,6 +133,11 @@ code {
   font-size: 12px; font-weight: 600; white-space: nowrap;
 }
 .badge-proto { background: var(--warn-soft); color: var(--warn); }
+.badge-ok { background: #e6f4e8; color: var(--ok); }
+.badge-warn { background: var(--warn-soft); color: var(--warn); }
+.badge-danger { background: var(--danger-soft); color: var(--danger); }
+.badge-info { background: var(--primary-soft); color: var(--primary); }
+.badge-muted { background: #eef1f5; color: var(--muted); }
 
 .btn {
   display: inline-block; padding: 8px 16px; border-radius: 6px;
@@ -147,6 +152,23 @@ code {
 .table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .table th, .table td { padding: 8px 10px; border: 1px solid var(--line); text-align: left; }
 .table th { background: #f3f5f8; font-weight: 600; }
+
+/* ---------- блоки данных страниц ---------- */
+.table-wrap { overflow-x: auto; }
+.table-wrap .table { min-width: 640px; }
+.table td.mono, .table td .mono {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 13px;
+}
+.notice {
+  margin: 18px 0 0; padding: 10px 14px; font-size: 13px;
+  border: 1px solid #d8e2f5; border-left: 4px solid var(--primary);
+  border-radius: var(--radius); background: var(--primary-soft);
+  color: #24405f;
+}
+.data-list { margin: 0; padding-left: 18px; font-size: 14px; }
+.data-list li { margin: 4px 0; }
+.data-list em { font-style: normal; color: var(--muted); margin-left: 6px; }
 
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
 .card { padding: 16px; border: 1px solid var(--line); border-radius: var(--radius); background: #fcfdfe; }

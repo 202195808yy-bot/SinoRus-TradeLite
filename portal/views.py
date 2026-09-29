@@ -1,28 +1,37 @@
 # -*- coding: utf-8 -*-
-"""Прототипы представлений приложения portal.
+"""Представления приложения portal.
 
-На текущем этапе курсового проекта все представления являются прототипами:
-они проверяют работоспособность маршрутизации и шаблонизации, но не содержат
-бизнес-логики и работы с моделями (модели разрабатываются на следующем этапе).
+Этап 4 («Шаблоны страниц приложения»). Каждое представление соответствует
+одной странице реестра ``portal/pages.py`` и получает данные из моделей
+через провайдеры ``portal/datasets.py``.
 
-Каждое представление соответствует одной странице из реестра portal/pages.py.
+Страницы, для которых провайдер ещё не написан, отрисовываются как
+прототипы (заглушка вместо данных) — см. ``datasets.coverage()``.
 """
 
 from django.contrib.auth import logout as auth_logout
 from django.shortcuts import redirect, render
 
+from .datasets import provider_for
 from .pages import PAGE_BY_NAME, PAGES
 
 
 def _page(request, name, **extra):
-    """Отрисовка страницы-прототипа по записи реестра страниц."""
+    """Отрисовка страницы по записи реестра и провайдеру данных."""
     page = PAGE_BY_NAME[name]
+    provider = provider_for(name)
     context = {
         "page": page,
         "page_url": "/" + page["path"],
         "all_pages": PAGES,
-        "prototype": True,
+        "prototype": provider is None,
+        "blocks": [],
+        "mode": None,
     }
+    if provider is not None:
+        data = provider(request, **extra) or {}
+        context["blocks"] = data.get("blocks", [])
+        context["mode"] = data.get("mode")
     context.update(extra)
     return render(request, "portal/page.html", context)
 
@@ -32,10 +41,13 @@ def _page(request, name, **extra):
 # ======================================================================
 
 def index_view(request):
-    """Главная страница: назначение платформы, ключевые возможности, вход."""
+    """Главная страница: сводка платформы и последние заказы."""
+    data = provider_for("index")(request)
     return render(request, "portal/index.html", {
         "page": PAGE_BY_NAME["index"],
-        "prototype": True,
+        "prototype": False,
+        "blocks": data.get("blocks", []),
+        "mode": data.get("mode"),
     })
 
 
@@ -100,7 +112,7 @@ def goods_list_view(request):
 
 def goods_detail_view(request, pk):
     """Карточка товара: характеристики, соответствие, история версий."""
-    return _page(request, "goods_detail", object_id=pk)
+    return _page(request, "goods_detail", pk=pk)
 
 
 def goods_form_view(request):
@@ -124,7 +136,7 @@ def rfq_create_view(request):
 
 def rfq_detail_view(request, pk):
     """Карточка запроса со связанными предложениями."""
-    return _page(request, "rfq_detail", object_id=pk)
+    return _page(request, "rfq_detail", pk=pk)
 
 
 def quote_list_view(request):
@@ -134,7 +146,7 @@ def quote_list_view(request):
 
 def quote_detail_view(request, pk):
     """Карточка предложения: ступенчатые цены, версии, переход к заказу."""
-    return _page(request, "quote_detail", object_id=pk)
+    return _page(request, "quote_detail", pk=pk)
 
 
 # ======================================================================
@@ -148,17 +160,17 @@ def order_list_view(request):
 
 def order_detail_view(request, pk):
     """Карточка заказа: зона состояния, шкала этапов, зона действий."""
-    return _page(request, "order_detail", object_id=pk)
+    return _page(request, "order_detail", pk=pk)
 
 
 def order_milestones_view(request, pk):
     """Этапы исполнения заказа: регистрация и просмотр хронологии."""
-    return _page(request, "order_milestones", object_id=pk)
+    return _page(request, "order_milestones", pk=pk)
 
 
 def order_changes_view(request, pk):
     """Изменения заказа: листы изменений с подтверждением сторон."""
-    return _page(request, "order_changes", object_id=pk)
+    return _page(request, "order_changes", pk=pk)
 
 
 # ======================================================================
@@ -172,7 +184,7 @@ def shipment_list_view(request):
 
 def shipment_detail_view(request, pk):
     """Карточка партии: регистрация этапов перевозки и документов."""
-    return _page(request, "shipment_detail", object_id=pk)
+    return _page(request, "shipment_detail", pk=pk)
 
 
 def exception_list_view(request):
@@ -220,7 +232,7 @@ def message_list_view(request):
 
 def message_detail_view(request, pk):
     """Диалог в контексте бизнес-объекта с помощью перевода."""
-    return _page(request, "message_detail", object_id=pk)
+    return _page(request, "message_detail", pk=pk)
 
 
 # ======================================================================
@@ -234,7 +246,7 @@ def task_board_view(request):
 
 def task_detail_view(request, pk):
     """Карточка задачи: сроки, история обработки, эскалация."""
-    return _page(request, "task_detail", object_id=pk)
+    return _page(request, "task_detail", pk=pk)
 
 
 def notification_settings_view(request):
@@ -248,9 +260,12 @@ def notification_settings_view(request):
 
 def dashboard_view(request):
     """Панель исполнения: сводные карточки и распределение по статусам."""
+    data = provider_for("dashboard")(request)
     return render(request, "portal/dashboard.html", {
         "page": PAGE_BY_NAME["dashboard"],
-        "prototype": True,
+        "prototype": False,
+        "blocks": data.get("blocks", []),
+        "mode": data.get("mode"),
     })
 
 
@@ -275,7 +290,7 @@ def statement_list_view(request):
 
 def statement_detail_view(request, pk):
     """Сверка расчётов: постатейное подтверждение и разногласия."""
-    return _page(request, "statement_detail", object_id=pk)
+    return _page(request, "statement_detail", pk=pk)
 
 
 # ======================================================================

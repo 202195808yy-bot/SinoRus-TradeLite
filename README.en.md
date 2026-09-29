@@ -17,7 +17,7 @@ a deal (seller, buyer, carrier, customs broker) onto a single timeline.
 | 1 | Domain: overview of the area and entity list (document, 2 languages) | done |
 | 2 | Application page descriptions (document) | done |
 | 3 | Application models (document, 2 languages) | done |
-| 4 | Application page templates | — |
+| 4 | Application page templates | in progress: pages wired to models |
 | 5 | Application users | — |
 
 ## Mobile client
@@ -101,6 +101,7 @@ course_project/
 │       └── figures_{ru,zh,en}/  figures for the corresponding language version
 ├── tools/
 │   ├── check_routes.py        page registry vs Django routes check
+│   ├── check_data.py          page data registry vs page registry check
 │   ├── check_i18n.py          registry translation completeness check
 │   ├── smoke_test.py          smoke test: request every page
 │   └── gen_docs.py            generates docs/pages.{ru,zh,en}.md
@@ -114,16 +115,19 @@ course_project/
 │   ├── urls.py                routes grouped by modules M0..M11
 │   ├── views.py               view prototypes
 │   ├── context_processors.py  module navigation
+│   ├── datasets.py            SINGLE PAGE DATA REGISTRY: context providers
 │   ├── models.py              application models: 52 models, 9 classes (stage 3)
 │   ├── admin.py               model registration, tabular inlines
 │   ├── tests.py               20 model tests: numbering, properties, constraints
+│   ├── tests_views.py         17 page and data tests (stage 4)
 │   ├── management/commands/seed_demo.py   idempotent demo data loader
 │   └── migrations/
 ├── templates/
 │   ├── base.html              base template
 │   └── portal/
 │       ├── index.html         landing page
-│       ├── page.html          universal prototype page template
+│       ├── page.html          universal page template
+│       ├── _blocks.html       data block rendering: kpi, tables, fields
 │       └── dashboard.html     execution dashboard
 └── static/
     └── css/style.css          prototype styles
@@ -190,6 +194,36 @@ Chinese counterpart `docs/Модели_приложения_CN.docx` (28 pp.); e
 in the document is built from ORM metadata, so it cannot drift apart from
 the code.
 
+## Application page templates
+
+Stage 4 wires the pages to the models. The single data registry
+`portal/datasets.py` maps every page to a context provider function
+`provider(request, **kw)` that returns a set of blocks (`kpi` — metrics,
+`table` — a table with link and badge cells, `fields` — a field card,
+`list` — a short list). The universal template
+`templates/portal/_blocks.html` renders these blocks, so the same markup
+serves the landing page, the lists and the cards.
+
+| Item | Count | Location |
+|---|---|---|
+| Pages backed by models | 37 | `portal/datasets.py` |
+| Prototype pages (no data) | 6 | `about`, `help`, `login`, `register`, `logout`, `admin_index` |
+| Total pages | 43 | `portal/pages.py` |
+
+The providers issue real ORM queries: lists use
+`select_related`/`prefetch_related` and cap the output (`LIST_LIMIT = 50`
+with a truncation flag), cards use `get_object_or_404`, and the quote list
+uses the `Max("versions__version")` aggregate to show the latest version
+number. Amounts are rendered in Russian format (space as thousands
+separator, comma in the fractional part). When the user is not
+authenticated, corporate pages show the first enterprise's data and are
+flagged with the `demo` mode (access control is stage 5).
+
+```bash
+python tools/check_data.py     # 37 pages with data, 6 prototypes
+python manage.py test portal   # 37 tests: models and pages
+```
+
 ## Application modules
 
 | Code | Module | Pages |
@@ -214,8 +248,10 @@ the code.
 python manage.py check          # configuration check
 python tools/check_routes.py    # page registry vs routes
 python tools/check_i18n.py      # three-language translation completeness
+python tools/check_data.py      # pages wired to models
 python tools/smoke_test.py      # smoke test: request every page
 python tools/gen_docs.py        # refresh docs/pages.{ru,zh,en}.md
+python manage.py test portal    # 37 tests: models and pages
 ```
 
 ## Domain boundaries

@@ -1,0 +1,93 @@
+{% comment %}
+Универсальный рендерер блоков данных страницы.
+Блоки собираются провайдерами portal/datasets.py:
+  kpi    — плитки показателей;
+  table  — таблица (колонки + строки из ячеек);
+  fields — карточка «поле — значение»;
+  list   — компактный список.
+{% endcomment %}
+
+{% if mode == "demo" %}
+<p class="notice">
+  Демонстрационный режим: показаны данные первого предприятия базы.
+  Ограничение доступа по ролям — этап 5 «Пользователи приложения».
+</p>
+{% endif %}
+
+{% for b in blocks %}
+
+  {% if b.kind == "kpi" %}
+  <section class="block">
+    {% if b.title %}<h2>{{ b.title }}</h2>{% endif %}
+    <div class="stat-row">
+      {% for it in b.items %}
+      <div class="stat{% if it.tone %} stat-{{ it.tone }}{% endif %}">
+        <span class="stat-value">{{ it.value }}</span>
+        <span class="stat-label">{{ it.label }}{% if it.hint %} · {{ it.hint }}{% endif %}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  {% elif b.kind == "table" %}
+  <section class="block">
+    {% if b.title %}<h2>{{ b.title }}</h2>{% endif %}
+    {% if b.rows %}
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>{% for col in b.columns %}<th>{{ col }}</th>{% endfor %}</tr>
+        </thead>
+        <tbody>
+          {% for row in b.rows %}
+          <tr>
+            {% for cell in row %}
+            <td{% if cell.mono %} class="mono"{% endif %}>{% if cell.url %}<a href="{{ cell.url }}">{{ cell.text }}</a>{% elif cell.badge %}<span class="badge badge-{{ cell.badge }}">{{ cell.text }}</span>{% else %}{{ cell.text }}{% endif %}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if b.truncated %}
+    <p class="muted">Показаны первые {{ b.rows|length }} записей из общего числа.</p>
+    {% endif %}
+    {% else %}
+    <p class="muted">{{ b.empty }}</p>
+    {% endif %}
+    {% if b.note %}<p class="muted">{{ b.note }}</p>{% endif %}
+  </section>
+
+  {% elif b.kind == "fields" %}
+  <section class="block">
+    {% if b.title %}<h2>{{ b.title }}</h2>{% endif %}
+    <dl class="meta-grid">
+      {% for item in b.items %}
+      <div>
+        <dt>{{ item.0 }}</dt>
+        <dd>{{ item.1 }}</dd>
+      </div>
+      {% endfor %}
+    </dl>
+  </section>
+
+  {% elif b.kind == "list" %}
+  <section class="block">
+    {% if b.title %}<h2>{{ b.title }}</h2>{% endif %}
+    {% if b.items %}
+    <ul class="data-list">
+      {% for it in b.items %}
+      <li>
+        {% if it.url %}<a href="{{ it.url }}">{{ it.text }}</a>{% else %}{{ it.text }}{% endif %}
+        {% if it.hint %}<em>{{ it.hint }}</em>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">{{ b.empty }}</p>
+    {% endif %}
+  </section>
+
+  {% endif %}
+
+{% endfor %}
