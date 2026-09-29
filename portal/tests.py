@@ -286,3 +286,54 @@ class SeedDemoTest(TestCase):
                                       subject_id=order.id)
         message = dialog.messages.first()
         self.assertIsNotNone(message.translations.first())
+
+    def test_seed_sets_demo_passwords(self):
+        """Все демонстрационные пользователи входят с паролем из команды.
+
+        Регрессия: раньше администратор создавался с пустым паролем, хотя
+        команда сообщала пароль в итоговой строке, и вход в /admin/ был
+        невозможен.
+        """
+        from django.contrib.auth import get_user_model
+
+        from .management.commands.seed_demo import DEMO_PASSWORD
+
+        call_command("seed_demo", verbosity=0)
+        User = get_user_model()
+        for username in ("ivanov", "wang", "petrov", "admin"):
+            user = User.objects.get(username=username)
+            self.assertTrue(user.password, f"{username}: пустой пароль")
+            self.assertTrue(user.check_password(DEMO_PASSWORD),
+                            f"{username}: пароль не совпадает с демо-паролем")
+
+    def test_seed_admin_can_open_admin_site(self):
+        """Администратор имеет права персонала и доступ к /admin/."""
+        from django.contrib.auth import get_user_model
+        from django.test import Client
+
+        from .management.commands.seed_demo import DEMO_PASSWORD
+
+        call_command("seed_demo", verbosity=0)
+        admin_user = get_user_model().objects.get(username="admin")
+        self.assertTrue(admin_user.is_staff)
+        self.assertTrue(admin_user.is_superuser)
+
+        client = Client(HTTP_HOST="localhost")
+        self.assertTrue(client.login(username="admin", password=DEMO_PASSWORD))
+        self.assertEqual(client.get("/admin/").status_code, 200)
+
+    def test_seed_repairs_empty_admin_password(self):
+        """Повторный запуск восстанавливает пароль администратора."""
+        from django.contrib.auth import get_user_model
+
+        from .management.commands.seed_demo import DEMO_PASSWORD
+
+        call_command("seed_demo", verbosity=0)
+        User = get_user_model()
+        broken = User.objects.get(username="admin")
+        broken.password = ""
+        broken.save(update_fields=["password"])
+
+        call_command("seed_demo", verbosity=0)
+        self.assertTrue(User.objects.get(username="admin")
+                        .check_password(DEMO_PASSWORD))

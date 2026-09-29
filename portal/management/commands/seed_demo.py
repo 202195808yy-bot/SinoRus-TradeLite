@@ -143,10 +143,19 @@ class Command(BaseCommand):
             users[uname] = u
             m.Profile.objects.get_or_create(
                 user=u, defaults=dict(language=lang, phone=phone))
-        admin_u, _ = User.objects.get_or_create(
+        admin_u, admin_was = User.objects.get_or_create(
             username="admin",
             defaults=dict(email="admin@tradehub.local",
                           is_staff=True, is_superuser=True))
+        created["n"] += int(admin_was)
+        # Пароль администратора задаётся при создании и восстанавливается,
+        # если запись осталась с пустым паролем: так её создавала прежняя
+        # версия команды, и войти в /admin/ было невозможно.
+        if admin_was or not admin_u.password:
+            admin_u.set_password(DEMO_PASSWORD)
+            admin_u.is_staff = True
+            admin_u.is_superuser = True
+            admin_u.save()
         log(f"  = пользователи: {len(users)} + admin"
                           f" (пароль: {DEMO_PASSWORD})")
 

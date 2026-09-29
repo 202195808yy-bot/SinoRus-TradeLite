@@ -195,15 +195,27 @@ Shared mechanisms: the `TimeStampedModel` abstract model with time stamps,
 ```bash
 python manage.py migrate           # create 53 tables
 python manage.py seed_demo         # demo deal chain
-python manage.py test portal       # 20 model tests
+python manage.py test portal       # 65 tests: models, pages, languages
 ```
 
 The `seed_demo` command is idempotent (a second run creates no duplicates)
 and builds an end-to-end example: RFQ → quote in two versions → order with
 eight milestones → shipment → transport with waybill and track points →
 incident → document set → soon-expiring certificate → dialog with
-translation → task → statement, payment and reconciliation. Demo users:
-`ivanov`, `wang`, `petrov`, `admin`, password `tradehub-demo-2026`.
+translation → task → statement, payment and reconciliation.
+
+Demo users, all with the password `tradehub-demo-2026`:
+
+| Login | Role | Access |
+|---|---|---|
+| `admin` | administrator | `/admin/` panel (is_staff, is_superuser) |
+| `ivanov` | procurement, Russian company | application pages |
+| `wang` | supplier, Chinese company | application pages |
+| `petrov` | carrier operator | application pages |
+
+The command sets the administrator password on creation and restores it if
+the record was left with an empty password (that is how an earlier version
+of the command created it, which made `/admin/` inaccessible).
 
 The stage document is `docs/Модели_приложения.docx` (ПЗ, 29 pp.) with a
 Chinese counterpart `docs/Модели_приложения_CN.docx` (28 pp.); every table
@@ -244,7 +256,7 @@ from the code.
 
 ```bash
 python tools/check_data.py     # 37 pages with data, 6 prototypes
-python manage.py test portal   # 62 tests: models, pages, languages
+python manage.py test portal   # 65 tests: models, pages, languages
 ```
 
 ## Interface language
@@ -319,7 +331,7 @@ python tools/check_data.py      # pages wired to models
 python tools/check_lang.py      # interface translation completeness
 python tools/smoke_test.py      # smoke test: request every page
 python tools/gen_docs.py        # refresh docs/pages.{ru,zh,en}.md
-python manage.py test portal    # 62 tests: models, pages, languages
+python manage.py test portal    # 65 tests: models, pages, languages
 ```
 
 ## Domain boundaries
