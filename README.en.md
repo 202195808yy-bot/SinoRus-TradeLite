@@ -106,7 +106,7 @@ course_project/
 │   ├── check_routes.py        page registry vs Django routes check
 │   ├── check_data.py          page data registry vs page registry check
 │   ├── check_i18n.py          registry translation completeness check
-│   ├── check_lang.py          interface translation completeness check
+│   ├── check_lang.py          translation completeness (labels, enums, references)
 │   ├── smoke_test.py          smoke test: request every page
 │   └── gen_docs.py            generates docs/pages.{ru,zh,en}.md
 ├── tradehub/                  project configuration
@@ -120,15 +120,16 @@ course_project/
 │   ├── views.py               view prototypes
 │   ├── context_processors.py  module navigation and interface language
 │   ├── i18n.py                language switching: interface texts, helpers
-│   ├── labels.py              block label dictionary (385 entries, ru→zh/en)
+│   ├── labels.py              translation dictionary: labels, enumerations,
+│   │                          reference values (501 entries, ru→zh/en)
 │   ├── middleware.py          language selection: ?lang= / /lang/<code>/ → session
-│   ├── langcheck.py           translation dictionary self-check
+│   ├── langcheck.py           self-check: labels, choices, reference values
 │   ├── datasets.py            SINGLE PAGE DATA REGISTRY: context providers
 │   ├── models.py              application models: 52 models, 9 classes (stage 3)
 │   ├── admin.py               model registration, tabular inlines
 │   ├── tests.py               23 model tests: numbering, properties, constraints
 │   ├── tests_views.py         17 page and data tests (stage 4)
-│   ├── tests_i18n.py          38 tests: language switching and purity
+│   ├── tests_i18n.py          52 tests: switching, translation, purity
 │   ├── templatetags/          template filters (tr, fmt)
 │   ├── management/commands/seed_demo.py   idempotent demo data loader
 │   └── migrations/
@@ -198,7 +199,7 @@ Shared mechanisms: the `TimeStampedModel` abstract model with time stamps,
 ```bash
 python manage.py migrate           # create 53 tables
 python manage.py seed_demo         # demo deal chain
-python manage.py test portal       # 78 tests: models, pages, languages
+python manage.py test portal       # 92 tests: models, pages, languages
 ```
 
 The `seed_demo` command is idempotent (a second run creates no duplicates)
@@ -259,7 +260,7 @@ from the code.
 
 ```bash
 python tools/check_data.py     # 37 pages with data, 6 prototypes
-python manage.py test portal   # 78 tests: models, pages, languages
+python manage.py test portal   # 92 tests: models, pages, languages
 ```
 
 ## Interface language
@@ -277,11 +278,28 @@ second set of translations that could drift apart from the code.
 | Module names M0..M11 | `portal/pages.py` registry | 12 modules |
 | Interface texts: navigation, buttons, section headings, footer | `portal/i18n.py`, the `UI` dictionary | 51 keys |
 | Data block labels: table and column headings, KPI captions, field keys, empty states | `portal/labels.py`, the `LABELS` dictionary | 385 strings |
+| Model enumerations: statuses, document kinds, units of measure, roles, categories, yes/no | `portal/labels.py` (checked against model `choices`) | 108 of 117 |
+| Reference values: countries, currencies, units, document types, industries, goods categories | `portal/labels.py` (checked against the reference's `name_zh`) | 12 |
 
 The language is chosen by `portal.middleware.LanguageMiddleware`: the
 `?lang=` parameter is stored in the session, so subsequent navigation keeps
-the chosen language. Table cell values are data (company names, document
-numbers, dates) and are not translated: the dictionary covers labels only.
+the chosen language.
+
+**What is translated and what is not.** The boundary is not “label versus
+cell” but “is the string in the dictionary”:
+
+* labels, **model enumerations** (field `choices`) and **reference values**
+  are translated — they are interface, even though they arrive as cell
+  values;
+* **free-form data is not translated**: company and product names, document
+  numbers, addresses, dates, amounts, free-text notes. They are absent from
+  the dictionary, so `i18n.tr_value()` returns them unchanged — replacing
+  data with dictionary entries would falsify the content.
+
+The rule used to be coarser (“never translate cells”), which let Russian
+statuses and document types slip past the dictionary. Two composite cases
+are also recognised: “Заказ #1” (label plus number) and values joined by a
+separator (“Недовоз · Повреждение”, “RU — Россия”).
 
 ```bash
 /?lang=zh              # Chinese interface
@@ -302,16 +320,19 @@ in the panel's list views as an unknown filter and answers with a spurious
 redirect (`/admin/portal/order/?lang=zh` → `302` to `?e=1`). The
 `portal:set_language` route keeps the return address in `next`, accepts
 own paths only (open-redirect protection) and remains compatible with the
-`?lang=` parameter in application URLs.
+`?lang=` parameter in application URLs. Logging out also preserves the
+chosen language: `auth_logout()` flushes the whole session, so the logout
+view restores the choice.
 
 Page titles and block labels come from the same source as the stage 1–4
 documents, so the interface and the explanatory notes cannot diverge.
 Dictionary completeness is verified automatically: the providers are
-executed against the demo data and every label encountered must have a
+executed against the demo data, while enumerations and reference values are
+collected by walking the model metadata — every such string must have a
 translation.
 
 ```bash
-python tools/check_lang.py     # 385 block labels + 51 interface texts
+python tools/check_lang.py     # 385 labels + 108 enums + 12 reference values
 ```
 
 The Chinese version of the page descriptions contains no Cyrillic (apart
@@ -350,7 +371,7 @@ python tools/check_data.py      # pages wired to models
 python tools/check_lang.py      # interface translation completeness
 python tools/smoke_test.py      # smoke test: request every page
 python tools/gen_docs.py        # refresh docs/pages.{ru,zh,en}.md
-python manage.py test portal    # 78 tests: models, pages, languages
+python manage.py test portal    # 92 tests: models, pages, languages
 ```
 
 ## Domain boundaries

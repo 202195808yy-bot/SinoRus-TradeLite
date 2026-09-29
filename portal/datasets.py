@@ -52,10 +52,19 @@ STATUS_TONE = {
 
 # --------------------------------------------------------------- ячейки
 
-def c(text, url=None, badge=None, mono=False):
-    """Ячейка таблицы."""
-    return {"text": "" if text is None else str(text), "url": url,
+def c(text, url=None, badge=None, mono=False, label=None):
+    """Ячейка таблицы.
+
+    ``label`` помечает подпись-префикс внутри текста ячейки, например
+    «Заказ ORD-2026-0001»: ``i18n.translate_cell()`` переведёт только
+    подпись («订单 ORD-2026-0001»), а номер оставит как есть. Без этой
+    пометки строка считалась бы данными и не переводилась.
+    """
+    cell = {"text": "" if text is None else str(text), "url": url,
             "badge": badge, "mono": mono}
+    if label:
+        cell["label"] = label
+    return cell
 
 
 def badge_of(value, label=None):
@@ -1155,7 +1164,8 @@ def dashboard_data(request, **kw):
             empty="Открытых инцидентов нет"),
         tbl("Ближайшие сроки",
             ["Объект", "Событие", "Дата", "Осталось дней"],
-            [[c(f"Заказ {o.number}"), c("Плановая дата этапа"),
+            [[c(f"Заказ {o.number}", label="Заказ"),
+              c("Плановая дата этапа"),
               c(dt(mil.planned_date)),
               c((mil.planned_date - today).days if mil.planned_date else "—")]
              for o in orders for mil in o.milestones.filter(

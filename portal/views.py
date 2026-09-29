@@ -119,8 +119,16 @@ def register_view(request):
 
 
 def logout_view(request):
-    """Выход из системы с завершением сессии."""
+    """Выход из системы с завершением сессии.
+
+    ``auth_logout()`` очищает сессию целиком, вместе с выбранным языком,
+    поэтому выбор сохраняется и восстанавливается после выхода — иначе
+    интерфейс возвращался бы к языку по умолчанию.
+    """
+    lang = _lang(request)
     auth_logout(request)
+    if lang != DEFAULT_LANG:
+        request.session["lang"] = lang
     return redirect("portal:index")
 
 

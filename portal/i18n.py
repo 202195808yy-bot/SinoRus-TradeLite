@@ -79,8 +79,80 @@ def ui(lang):
     return {key: t(key, lang) for key in UI}
 
 
+#: разделители, которыми провайдеры склеивают значения в одной ячейке:
+#: «Недовоз · Повреждение · Прочее», «RU — Россия»
+LIST_SEPS = (" · ", " — ")
+
+#: разделитель «подпись + номер»: «Заказ #1»
+CODE_SEP = " #"
+
+
+def tr_value(text, lang):
+    """Переводит значение ячейки — но только если оно есть в словаре.
+
+    Граница «данные / интерфейс» проходит не по признаку «ячейка или
+    подпись», а по признаку «есть ли строка в словаре»:
+
+    * в ``LABELS`` лежат подписи, **перечисления** (статусы, виды
+      документов, единицы измерения, роли, категории, «да»/«нет») и
+      **значения справочников** (страны, валюты, типы документов);
+    * свободные данные — наименования предприятий, номера документов,
+      адреса, даты, суммы — в словарь не попадают.
+
+    Поэтому перевод значения безопасен: неизвестная строка возвращается
+    как есть. Раньше правило было грубее («ячейки не переводим»), из-за
+    чего в китайском интерфейсе оставались русские статусы и виды
+    документов — они интерфейс, а не данные.
+
+    Дополнительно распознаются два составных случая: «Заказ #1» (подпись
+    плюс номер) и значения, склеенные разделителем (``LIST_SEPS``) —
+    переводится каждая часть отдельно.
+    """
+    if not text or lang == DEFAULT_LANG or not isinstance(text, str):
+        return text
+    pair = LABELS.get(text)
+    if pair is not None:
+        return pair[0] if lang == "zh" else pair[1]
+    # «Заказ #1» — перечисление плюс номер: переводится только голова
+    head, sep, tail = text.partition(CODE_SEP)
+    if sep and head in LABELS:
+        return tr(head, lang) + sep + tail
+    # составное значение: «Недовоз · Повреждение», «RU — Россия»
+    for splitter in LIST_SEPS:
+        if splitter in text:
+            parts = text.split(splitter)
+            if any(part in LABELS for part in parts):
+                return splitter.join(tr_value(part, lang) for part in parts)
+    return text
+
+
+def translate_cell(cell, lang):
+    """Переводит ячейку таблицы.
+
+    Обычная ячейка — это словарь ``{"text": …}``. Если провайдер пометил
+    ячейку ключом ``label`` (например, «Заказ ORD-1» — подпись плюс номер),
+    переводится только подпись-префикс, а значение остаётся нетронутым.
+    """
+    if not isinstance(cell, dict):
+        return tr_value(cell, lang)
+    label = cell.get("label")
+    text = cell.get("text")
+    if label and isinstance(text, str):
+        head = tr(label, lang)
+        if head != label and text.startswith(label):
+            cell["text"] = head + text[len(label):]
+            return cell
+    if text:
+        cell["text"] = tr_value(text, lang)
+    return cell
+
+
 def translate_blocks(blocks, lang):
-    """Переводит подписи в блоках данных (значения ячеек не трогает)."""
+    """Переводит блоки данных: подписи и перечисления.
+
+    Значения ячеек переводятся только в том случае, если строка есть в
+    словаре (см. ``tr_value``) — свободные данные остаются как есть.
+    """
     if lang == DEFAULT_LANG or not blocks:
         return blocks
     for block in blocks:
@@ -98,8 +170,19 @@ def translate_blocks(blocks, lang):
                     item["label"] = tr(item["label"], lang)
                 if item.get("hint"):
                     item["hint"] = tr(item["hint"], lang)
+                # значение плитки KPI тоже бывает перечислением
+                # (например, «Активна» — состояние предприятия)
+                if item.get("value") not in (None, ""):
+                    item["value"] = tr_value(item["value"], lang)
+                if item.get("text") and block.get("kind") == "list":
+                    item["text"] = tr_value(item["text"], lang)
             elif isinstance(item, (list, tuple)) and item:
                 item[0] = tr(item[0], lang)          # ключ блока «поле — значение»
+                if len(item) > 1:
+                    item[1] = tr_value(item[1], lang)  # значение-перечисление
+        for row in block.get("rows") or []:
+            for cell in row:
+                translate_cell(cell, lang)
     return blocks
 
 
@@ -108,6 +191,12 @@ def label_strings(blocks):
 
     Используется самопроверкой словаря — ``portal/langcheck.py``.
     Значения ячеек таблиц в набор не попадают: это данные, а не подписи.
+    Исключение — ячейки, помеченные ключом ``label``: у них переводится
+    именно подпись-префикс («Заказ ORD-1»), поэтому подпись проверяется.
+
+    Перечисления (статусы, виды документов, единицы измерения) приходят из
+    ``choices`` моделей и проверяются отдельно — ``langcheck.enum_labels()``:
+    они попадают в ячейки как значения, а не как подписи.
     """
     out = set()
     for block in blocks or []:
@@ -124,6 +213,35 @@ def label_strings(blocks):
                     out.add(item["hint"])
             elif isinstance(item, (list, tuple)) and item:
                 out.add(str(item[0]))
+        for row in block.get("rows") or []:
+            for cell in row:
+                if isinstance(cell, dict) and cell.get("label"):
+                    out.add(cell["label"])
+    return out
+
+
+def value_strings(blocks):
+    """Собирает значения ячеек блоков — кандидаты на перевод перечислений.
+
+    Значение переводится, если строка есть в словаре (см. ``tr_value``),
+    поэтому самопроверка берёт пересечение этого набора с подписями
+    ``choices`` моделей — ``portal/langcheck.py``.
+    """
+    out = set()
+    for block in blocks or []:
+        for row in block.get("rows") or []:
+            for cell in row:
+                if isinstance(cell, dict):
+                    if cell.get("text"):
+                        out.add(str(cell["text"]))
+                else:
+                    out.add(str(cell))
+        for item in block.get("items") or []:
+            if isinstance(item, dict):
+                if item.get("value") not in (None, ""):
+                    out.add(str(item["value"]))
+            elif isinstance(item, (list, tuple)) and len(item) > 1:
+                out.add(str(item[1]))
     return out
 
 

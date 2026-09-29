@@ -7,21 +7,28 @@
   язык по умолчанию;
 * перевод названий и описаний страниц из реестра ``portal/pages.py``;
 * перевод подписей блоков данных (заголовки таблиц, подписи KPI);
+* перевод **перечислений** (``choices`` моделей) и **значений
+  справочников** — они приходят в ячейки значениями, а не подписями;
+* сохранение свободных данных: наименования, номера, даты не переводятся;
 * полнота словарей ``portal/labels.py`` и ``portal/i18n.py``;
 * переключение административной панели тем же выбором языка;
 * языковая чистота: русская версия без иероглифов, китайская — без
   кириллицы (кроме общепринятых обозначений).
 """
 
+import inspect
 import re
 from urllib.parse import quote
 
 from django.core.management import call_command
 from django.test import Client, TestCase
 
+from .datasets import provider_for
 from .i18n import (DEFAULT_LANG, LABELS, LANGS, LANG_LABELS, LANG_SHORT, UI,
-                   normalize, tr, translate_blocks)
-from .langcheck import scan
+                   normalize, tr, translate_blocks, translate_cell, tr_value,
+                   value_strings)
+from .langcheck import (ENUM_SKIP, anon_request, provider_pk, reference_mismatches,
+                        scan, untranslated_enums, untranslated_reference_values)
 from .pages import PAGES, content_of, module_name, purpose_of, title_of
 from .views import _page_data
 
@@ -111,6 +118,21 @@ class LanguageSelectionTest(TestCase):
                       self.client.get("/?lang=zh").content.decode())
         self.assertIn('lang="en"', self.client.get("/?lang=en").content.decode())
 
+    def test_logout_keeps_language(self):
+        """Выход из системы не сбрасывает выбранный язык.
+
+        ``auth_logout()`` очищает сессию целиком, вместе с языком, поэтому
+        представление выхода сохраняет выбор и восстанавливает его.
+        """
+        from django.contrib.auth import get_user_model
+        user = get_user_model().objects.create_user(
+            username="langout", password="langout-pass")
+        self.client.force_login(user)
+        self.client.get("/lang/zh/?next=%2F")
+        self.assertEqual(self.client.get("/accounts/logout/").status_code, 302)
+        self.assertEqual(self.client.session["lang"], "zh")
+        self.assertEqual(self.client.get("/").context["LANG"], "zh")
+
 
 class PageContentLanguageTest(TestCase):
     """Название, назначение и содержание страницы — на текущем языке."""
@@ -197,16 +219,21 @@ class BlockLabelTranslationTest(TestCase):
         html = response.content.decode()
         self.assertIn("ORD-", html)          # номера документов как есть
 
-    def test_translate_blocks_keeps_values(self):
+    def test_translate_blocks_does_not_touch_free_data(self):
+        """Свободные данные в ячейках остаются как есть.
+
+        Перечисление («Подписан») переводится, потому что есть в словаре,
+        а наименование предприятия — нет: его в словаре нет.
+        """
         blocks = [{"kind": "table", "title": "Заказы", "empty": "Заказов нет",
                    "columns": ["Статус"],
-                   "rows": [[{"text": "Подписан", "url": None}]],
+                   "rows": [[{"text": "Медтех-Рус", "url": None}]],
                    "items": []}]
         out = translate_blocks(blocks, "zh")
         self.assertEqual(out[0]["title"], "订单")
         self.assertEqual(out[0]["columns"], ["状态"])
         self.assertEqual(out[0]["empty"], "无订单")
-        self.assertEqual(out[0]["rows"][0][0]["text"], "Подписан")
+        self.assertEqual(out[0]["rows"][0][0]["text"], "Медтех-Рус")
 
     def test_translate_blocks_is_noop_for_russian(self):
         blocks = [{"kind": "table", "title": "Заказы", "columns": ["Статус"],
@@ -366,6 +393,148 @@ class AdminLanguageTest(TestCase):
         self.client.get("/?lang=zh")
         self.assertEqual(self.client.get("/admin/").context["LANG"], "zh")
         self.assertEqual(self.client.get("/orders/").context["LANG"], "zh")
+
+
+class EnumLabelTest(TestCase):
+    """Перечисления моделей переведены, свободные данные — нет.
+
+    Раньше правило было «ячейки не переводим», и вместе с данными мимо
+    словаря проходили статусы, виды документов и единицы измерения.
+    Теперь значение переводится, если строка есть в словаре, поэтому
+    проверка идёт по ``choices`` моделей, а не по подписям блоков.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_demo", verbosity=0)
+
+    def test_every_choice_label_is_translated(self):
+        """Каждая подпись choices имеет перевод (кроме ENUM_SKIP)."""
+        missing = untranslated_enums()
+        self.assertEqual(missing, set(),
+                         f"нет перевода для {len(missing)} перечислений: "
+                         f"{sorted(missing)[:10]}")
+
+    def test_skip_list_is_explicit(self):
+        """Непереводимые перечисления перечислены явно и их немного."""
+        self.assertTrue(ENUM_SKIP)
+        self.assertEqual(untranslated_enums() & ENUM_SKIP, set())
+        # условия Инкотермс — международные сокращения, они не переводятся
+        for code in ("CIF", "DAP", "EXW", "FCA"):
+            self.assertIn(code, ENUM_SKIP)
+            self.assertNotIn(code, LABELS)
+
+    def test_translate_cell_keeps_free_data(self):
+        """Свободные данные не подменяются словарём."""
+        for value in ("Медтех-Рус", "ORD-2026-0001", "Москва, Пресненская наб., 10",
+                      "10 800,00 CNY", "2026-03-15"):
+            self.assertEqual(tr_value(value, "zh"), value)
+
+    def test_translate_cell_translates_enum(self):
+        """Значение-перечисление переводится."""
+        self.assertEqual(tr_value("Подписание", "zh"), "签署")
+        self.assertEqual(tr_value("Подписание", "en"), "Signing")
+        self.assertEqual(tr_value("Черновик", "zh"), "草稿")
+        self.assertEqual(tr_value("да", "zh"), "是")
+        self.assertEqual(tr_value("нет", "en"), "No")
+
+    def test_translate_cell_translates_joined_enum(self):
+        """Перечисления, склеенные в одну ячейку, переводятся по частям."""
+        cell = {"text": "Недовоз · Повреждение · Прочее"}
+        out = translate_cell(cell, "zh")
+        self.assertEqual(out["text"], "短装 · 破损 · 其他")
+        # свободный текст с тем же разделителем не ломается
+        cell = {"text": "Партия A · Партия B"}
+        self.assertEqual(translate_cell(cell, "zh")["text"], "Партия A · Партия B")
+
+    def test_translate_cell_translates_label_prefix(self):
+        """Помеченная подпись-префикс переводится, значение остаётся."""
+        cell = {"text": "Заказ ORD-2026-0001", "label": "Заказ"}
+        out = translate_cell(cell, "zh")
+        self.assertEqual(out["text"], "订单 ORD-2026-0001")
+        out = translate_cell({"text": "Заказ ORD-2026-0001", "label": "Заказ"}, "en")
+        self.assertEqual(out["text"], "Order ORD-2026-0001")
+
+    def test_translate_blocks_translates_cells(self):
+        """translate_blocks переводит и ячейки таблицы, и ключи полей."""
+        blocks = [{
+            "kind": "table", "title": "Заказы", "empty": "Заказов нет",
+            "columns": ["Статус"],
+            "rows": [[{"text": "Подписание", "url": None},
+                      {"text": "Медтех-Рус", "url": None}]],
+            "items": [],
+        }, {
+            "kind": "fields", "title": "Карточка", "items": [["Статус", "Черновик"]],
+        }]
+        out = translate_blocks(blocks, "zh")
+        self.assertEqual(out[0]["columns"], ["状态"])
+        self.assertEqual(out[0]["rows"][0][0]["text"], "签署")
+        self.assertEqual(out[0]["rows"][0][1]["text"], "Медтех-Рус")  # данные
+        self.assertEqual(out[1]["items"], [["状态", "草稿"]])
+
+    def test_reference_values_are_translated(self):
+        """Значения справочников (страны, валюты, типы документов) переведены."""
+        missing = untranslated_reference_values()
+        self.assertEqual(missing, set(),
+                         f"нет перевода для {len(missing)} значений "
+                         f"справочников: {sorted(missing)}")
+
+    def test_dictionary_agrees_with_reference_name_zh(self):
+        """Словарь не расходится с ``name_zh`` самих справочников."""
+        bad = reference_mismatches()
+        self.assertEqual(bad, [],
+                         f"словарь расходится со справочником: {bad}")
+
+    def test_translate_cell_handles_label_and_number(self):
+        """«Заказ #1» — переводится подпись, номер остаётся."""
+        self.assertEqual(tr_value("Заказ #1", "zh"), "订单 #1")
+        self.assertEqual(tr_value("Заказ #12", "en"), "Order #12")
+        # свободный текст с решёткой не ломается
+        self.assertEqual(tr_value("Партия A #3", "zh"), "Партия A #3")
+
+    def test_translate_cell_handles_separator_joined_value(self):
+        """Склеенные значения переводятся по частям."""
+        self.assertEqual(tr_value("Недовоз · Повреждение", "zh"), "短装 · 破损")
+        self.assertEqual(tr_value("RU — Россия", "zh"), "RU — 俄罗斯")
+        self.assertEqual(tr_value("Китай — Россия", "en"), "China — Russia")
+
+    def test_kpi_value_is_translated(self):
+        """Значение плитки KPI тоже переводится, если оно перечисление."""
+        blocks = [{"kind": "kpi", "title": "Состояние",
+                   "items": [{"label": "Состояние предприятия",
+                              "value": "Активна", "hint": None, "tone": "ok"},
+                             {"label": "Портфель",
+                              "value": "10 800,00 CNY", "hint": None,
+                              "tone": ""}]}]
+        out = translate_blocks(blocks, "zh")
+        self.assertEqual(out[0]["items"][0]["value"], "已启用")
+        # сумма — данные, остаётся как есть
+        self.assertEqual(out[0]["items"][1]["value"], "10 800,00 CNY")
+
+    def test_pages_have_no_russian_enum_values(self):
+        """На страницах не осталось русских перечислений в ячейках."""
+        offenders = {}
+        for page in PAGES:
+            provider = provider_for(page["name"])
+            if provider is None:
+                continue
+            kwargs = {}
+            if "pk" in inspect.signature(provider).parameters:
+                pk = provider_pk(provider)
+                if pk is None:
+                    continue
+                kwargs["pk"] = pk
+            request = anon_request("/" + page["path"])
+            try:
+                data = provider(request, **kwargs) or {}
+            except Exception:                                  # noqa: BLE001
+                continue
+            blocks = translate_blocks(data.get("blocks") or [], "zh")
+            left = value_strings(blocks) & untranslated_enums()
+            if left:
+                offenders[page["name"]] = sorted(left)
+        self.assertEqual(offenders, {},
+                         f"русские перечисления на страницах: {offenders}")
 
 
 class LabelCoverageTest(TestCase):
