@@ -16,12 +16,9 @@ a deal (seller, buyer, carrier, customs broker) onto a single timeline.
 | — | Create the Django project; page list with addresses and descriptions; routes and view prototypes; publish to git | done |
 | 1 | Domain: overview of the area and entity list (document, 2 languages) | done |
 | 2 | Application page descriptions (document) | done |
-| 3 | Application models | — |
+| 3 | Application models (document, 2 languages) | done |
 | 4 | Application page templates | — |
 | 5 | Application users | — |
-
-Assignment deadlines: stage 1 — 2025-09-17, stage 2 — 2025-10-01,
-stage 3 — 2025-10-22, stage 4 — 2025-10-29, stage 5 — 2025-11-26.
 
 ## Mobile client
 
@@ -93,6 +90,8 @@ course_project/
 │   ├── Предметная_область_и_сущности.docx      stage 1 document, ПЗ (32 pp., 56 entities, 9 classes)
 │   ├── Предметная_область_и_сущности_CN.docx   same in Chinese (26 pp.)
 │   ├── Описание_страниц_приложения.docx        stage 2 document (ПЗ, 28 pp.)
+│   ├── Модели_приложения.docx                  stage 3 document, ПЗ (29 pp., 52 models, 23 constraints)
+│   ├── Модели_приложения_CN.docx               same in Chinese (28 pp.)
 │   ├── 移动应用开发课设_学科领域与功能需求（俄文）.docx   mobile client, ПЗ (36 pp., 48 requirements)
 │   ├── 移动应用开发课设_学科领域与功能需求（中文）.docx   same in Chinese (30 pp.)
 │   └── mobile/                mobile client document in markdown, three languages
@@ -115,8 +114,10 @@ course_project/
 │   ├── urls.py                routes grouped by modules M0..M11
 │   ├── views.py               view prototypes
 │   ├── context_processors.py  module navigation
-│   ├── models.py              stub (stage 3)
-│   ├── admin.py               stub (stage 3)
+│   ├── models.py              application models: 52 models, 9 classes (stage 3)
+│   ├── admin.py               model registration, tabular inlines
+│   ├── tests.py               20 model tests: numbering, properties, constraints
+│   ├── management/commands/seed_demo.py   idempotent demo data loader
 │   └── migrations/
 ├── templates/
 │   ├── base.html              base template
@@ -147,6 +148,47 @@ languages (Russian, Chinese, English); route parameter descriptions are
 dicts keyed by language. Values are read through the helpers `title_of()`,
 `purpose_of()`, `content_of()`, `params_of()` and `module_name()`, so adding
 a fourth language requires no changes in the consumers.
+
+## Application models
+
+Stage 3 implements the data models in `portal/models.py`: 52 Django models
+cover the 56 domain entities (9 classes). Four entities are implemented not
+as tables but as fields and value dictionaries: product characteristics as
+the `Good.attributes` JSON field, the role as the `Membership.Role`
+dictionary, a file (media) as `FileField`s plus the `Attachment` model, and
+a glossary term as a static interface reference.
+
+| Item | Count | Location |
+|---|---|---|
+| Models | 52 | `portal/models.py` |
+| Fields (excluding PK) | 394 | same |
+| Integrity constraints | 23 | model `Meta.constraints` |
+| Application-level indexes | 11 | model `Meta.indexes` |
+| Computed properties | 9 | model properties |
+| Auto-numbered documents | 7 | `DocNumberMixin` |
+
+Shared mechanisms: the `TimeStampedModel` abstract model with time stamps,
+`DocNumberMixin` for numbers like `RFQ-2026-0001` (base-class order matters —
+`class Rfq(DocNumberMixin, TimeStampedModel)`), `DecimalField` for money,
+`TextChoices` dictionaries, and a Russian `verbose_name` on every field.
+
+```bash
+python manage.py migrate           # create 53 tables
+python manage.py seed_demo         # demo deal chain
+python manage.py test portal       # 20 model tests
+```
+
+The `seed_demo` command is idempotent (a second run creates no duplicates)
+and builds an end-to-end example: RFQ → quote in two versions → order with
+eight milestones → shipment → transport with waybill and track points →
+incident → document set → soon-expiring certificate → dialog with
+translation → task → statement, payment and reconciliation. Demo users:
+`ivanov`, `wang`, `petrov`, `admin`, password `tradehub-demo-2026`.
+
+The stage document is `docs/Модели_приложения.docx` (ПЗ, 29 pp.) with a
+Chinese counterpart `docs/Модели_приложения_CN.docx` (28 pp.); every table
+in the document is built from ORM metadata, so it cannot drift apart from
+the code.
 
 ## Application modules
 
