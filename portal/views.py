@@ -13,15 +13,42 @@ from django.contrib.auth import logout as auth_logout
 from django.shortcuts import redirect, render
 
 from .datasets import provider_for
-from .pages import PAGE_BY_NAME, PAGES
+from .i18n import DEFAULT_LANG, translate_blocks
+from .pages import (PAGE_BY_NAME, PAGES, content_of, module_name, params_of,
+                    purpose_of, title_of)
+
+
+def _lang(request):
+    """Текущий язык интерфейса (см. portal.middleware.LanguageMiddleware)."""
+    return getattr(request, "LANG", DEFAULT_LANG)
+
+
+def _page_data(page, lang):
+    """Запись реестра с названием и описанием на текущем языке.
+
+    Поля ``ru``/``zh``/``en`` сохраняются: шаблон показывает второй язык
+    подсказкой. Исторические ключи ``purpose``/``content`` (синонимы
+    китайских вариантов) перекрываются переводами текущего языка — так
+    страница больше не смешивает русский заголовок с китайским текстом.
+    """
+    data = dict(page)
+    data["title"] = title_of(page, lang)
+    data["purpose"] = purpose_of(page, lang)
+    data["content"] = content_of(page, lang)
+    data["params"] = params_of(page, lang)
+    data["module_title"] = module_name(page["module"], lang)
+    data["module_alt"] = module_name(
+        page["module"], "ru" if lang == "zh" else "zh")
+    return data
 
 
 def _page(request, name, **extra):
     """Отрисовка страницы по записи реестра и провайдеру данных."""
+    lang = _lang(request)
     page = PAGE_BY_NAME[name]
     provider = provider_for(name)
     context = {
-        "page": page,
+        "page": _page_data(page, lang),
         "page_url": "/" + page["path"],
         "all_pages": PAGES,
         "prototype": provider is None,
@@ -30,10 +57,11 @@ def _page(request, name, **extra):
     }
     if provider is not None:
         data = provider(request, **extra) or {}
-        context["blocks"] = data.get("blocks", [])
+        context["blocks"] = translate_blocks(data.get("blocks", []), lang)
         context["mode"] = data.get("mode")
     context.update(extra)
     return render(request, "portal/page.html", context)
+
 
 
 # ======================================================================
@@ -42,11 +70,12 @@ def _page(request, name, **extra):
 
 def index_view(request):
     """Главная страница: сводка платформы и последние заказы."""
+    lang = _lang(request)
     data = provider_for("index")(request)
     return render(request, "portal/index.html", {
-        "page": PAGE_BY_NAME["index"],
+        "page": _page_data(PAGE_BY_NAME["index"], lang),
         "prototype": False,
-        "blocks": data.get("blocks", []),
+        "blocks": translate_blocks(data.get("blocks", []), lang),
         "mode": data.get("mode"),
     })
 
@@ -260,11 +289,12 @@ def notification_settings_view(request):
 
 def dashboard_view(request):
     """Панель исполнения: сводные карточки и распределение по статусам."""
+    lang = _lang(request)
     data = provider_for("dashboard")(request)
     return render(request, "portal/dashboard.html", {
-        "page": PAGE_BY_NAME["dashboard"],
+        "page": _page_data(PAGE_BY_NAME["dashboard"], lang),
         "prototype": False,
-        "blocks": data.get("blocks", []),
+        "blocks": translate_blocks(data.get("blocks", []), lang),
         "mode": data.get("mode"),
     })
 

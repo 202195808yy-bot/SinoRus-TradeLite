@@ -7,14 +7,14 @@
     <div>
       <p class="page-module">
         <span class="chip">{{ page.module }}</span>
-        {{ page.zh }}
+        {{ page.module_alt }}
       </p>
-      <h1>{{ page.ru }}</h1>
+      <h1>{{ page.title }}</h1>
     </div>
     {% if prototype %}
-      <span class="badge badge-proto">Прототип</span>
+      <span class="badge badge-proto">{{ ui.badge_proto }}</span>
     {% else %}
-      <span class="badge badge-ok">Данные моделей</span>
+      <span class="badge badge-ok">{{ ui.badge_data }}</span>
     {% endif %}
   </header>
 
@@ -22,12 +22,8 @@
     {% include "portal/_blocks.html" %}
   {% else %}
     <section class="block block-placeholder">
-      <h2>Область макета</h2>
-      <p class="muted">
-        Страница ещё не подключена к моделям: проверены маршрут, шаблон и
-        передача контекста. Данные появятся после подключения провайдера в
-        <code>portal/datasets.py</code>.
-      </p>
+      <h2>{{ ui.placeholder_title }}</h2>
+      <p class="muted">{{ ui.placeholder_text }}</p>
       <div class="skeleton">
         <div class="sk-row sk-40"></div>
         <div class="sk-row sk-80"></div>
@@ -37,41 +33,41 @@
   {% endif %}
 
   <section class="block">
-    <h2>Назначение страницы</h2>
+    <h2>{{ ui.sec_purpose }}</h2>
     <p>{{ page.purpose }}</p>
   </section>
 
   <section class="block">
-    <h2>Основное содержание</h2>
+    <h2>{{ ui.sec_content }}</h2>
     <p>{{ page.content }}</p>
   </section>
 
   <section class="block">
-    <h2>Сведения о маршруте</h2>
+    <h2>{{ ui.sec_route }}</h2>
     <dl class="meta-grid">
       <div>
-        <dt>Адрес страницы</dt>
+        <dt>{{ ui.f_page_url }}</dt>
         <dd><code>{{ page_url }}</code></dd>
       </div>
       <div>
-        <dt>Имя маршрута</dt>
+        <dt>{{ ui.f_route_name }}</dt>
         <dd><code>portal:{{ page.name }}</code></dd>
       </div>
       <div>
-        <dt>Представление</dt>
+        <dt>{{ ui.f_view }}</dt>
         <dd><code>portal.views.{{ page.view }}</code></dd>
       </div>
       <div>
-        <dt>Режим доступа</dt>
+        <dt>{{ ui.f_access }}</dt>
         <dd>
-          {% if page.access == "public" %}Общедоступная
-          {% elif page.access == "auth" %}Требуется вход
-          {% else %}Ограничено ролью{% endif %}
+          {% if page.access == "public" %}{{ ui.access_public }}
+          {% elif page.access == "auth" %}{{ ui.access_auth }}
+          {% else %}{{ ui.access_role }}{% endif %}
         </dd>
       </div>
       {% if page.params %}
       <div class="span-2">
-        <dt>Параметры маршрута</dt>
+        <dt>{{ ui.f_params }}</dt>
         <dd><code>{{ page.params }}</code></dd>
       </div>
       {% endif %}

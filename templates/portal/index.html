@@ -6,63 +6,57 @@
 <article class="page">
 
   <header class="hero">
-    <p class="page-module">Курсовой проект · веб-приложение</p>
-    <h1>Легковесная платформа совместной работы<br>для трансграничной торговли России и Китая</h1>
-    <p class="lead">
-      Платформа занимает позицию «слой торговой кооперации»: она не заменяет
-      функции брокера, перевозчика или банка, а сводит разрозненные сведения
-      и задачи нескольких сторон на одну временную шкалу сделки.
-    </p>
+    <p class="page-module">{{ ui.index_kicker }}</p>
+    <h1>{{ ui.hero_title|safe }}</h1>
+    <p class="lead">{{ ui.hero_lead }}</p>
     <div class="hero-actions">
-      <a class="btn btn-primary" href="{% url 'portal:login' %}">Войти в систему</a>
-      <a class="btn" href="{% url 'portal:register' %}">Зарегистрироваться</a>
-      <a class="btn btn-ghost" href="{% url 'portal:about' %}">О платформе</a>
+      <a class="btn btn-primary" href="{% url 'portal:login' %}">{{ ui.btn_login }}</a>
+      <a class="btn" href="{% url 'portal:register' %}">{{ ui.btn_register }}</a>
+      <a class="btn btn-ghost" href="{% url 'portal:about' %}">{{ ui.btn_about }}</a>
     </div>
   </header>
 
   {% include "portal/_blocks.html" %}
 
   <section class="block">
-    <h2>Ключевые возможности</h2>
+    <h2>{{ ui.feat_title }}</h2>
     <div class="cards">
       <div class="card">
-        <h3>Исполнение сделки</h3>
-        <p>Заказы, партии, этапы перевозки и регистрация инцидентов в пути —
-           на одной временной шкале с указанием ответственного.</p>
+        <h3>{{ ui.feat1_h }}</h3>
+        <p>{{ ui.feat1_p }}</p>
       </div>
       <div class="card">
-        <h3>Документы и соответствие</h3>
-        <p>Реестр документов, контроль комплектности, сроки действия
-           сертификатов с напоминаниями за 60, 30 и 7 дней.</p>
+        <h3>{{ ui.feat2_h }}</h3>
+        <p>{{ ui.feat2_p }}</p>
       </div>
       <div class="card">
-        <h3>Двуязычное общение</h3>
-        <p>Диалоги привязаны к бизнес-объекту; шаблоны сообщений и терминология
-           поддерживают русский и китайский языки.</p>
+        <h3>{{ ui.feat3_h }}</h3>
+        <p>{{ ui.feat3_p }}</p>
       </div>
       <div class="card">
-        <h3>Аналитика и задачи</h3>
-        <p>Сводные показатели исполнения, сроки и затраты по каналам,
-           доска задач с эскалацией по истечении срока.</p>
+        <h3>{{ ui.feat4_h }}</h3>
+        <p>{{ ui.feat4_p }}</p>
       </div>
     </div>
   </section>
 
   <section class="block">
-    <h2>Структура приложения</h2>
-    <p class="muted">
-      Приложение разделено на двенадцать модулей. Ниже приведены модули и
-      количество страниц в каждом из них.
-    </p>
+    <h2>{{ ui.app_structure }}</h2>
+    <p class="muted">{{ ui.app_structure_lead }}</p>
     <table class="table">
       <thead>
-        <tr><th>Модуль</th><th>Название</th><th>Китайское название</th><th>Страниц</th></tr>
+        <tr>
+          <th>{{ ui.th_module }}</th>
+          <th>{{ ui.th_name }}</th>
+          <th>{{ ui.th_name_zh }}</th>
+          <th>{{ ui.th_pages }}</th>
+        </tr>
       </thead>
       <tbody>
         {% for module in nav_modules %}
         <tr>
           <td><span class="chip">{{ module.code }}</span></td>
-          <td>{{ module.ru }}</td>
+          <td>{{ module.title }}</td>
           <td>{{ module.zh }}</td>
           <td>{{ module.pages|length }}</td>
         </tr>

@@ -106,6 +106,7 @@ course_project/
 │   ├── check_routes.py        page registry vs Django routes check
 │   ├── check_data.py          page data registry vs page registry check
 │   ├── check_i18n.py          registry translation completeness check
+│   ├── check_lang.py          interface translation completeness check
 │   ├── smoke_test.py          smoke test: request every page
 │   └── gen_docs.py            generates docs/pages.{ru,zh,en}.md
 ├── tradehub/                  project configuration
@@ -117,12 +118,18 @@ course_project/
 │   ├── pages.py               SINGLE PAGE REGISTRY (43 entries)
 │   ├── urls.py                routes grouped by modules M0..M11
 │   ├── views.py               view prototypes
-│   ├── context_processors.py  module navigation
+│   ├── context_processors.py  module navigation and interface language
+│   ├── i18n.py                language switching: interface texts, helpers
+│   ├── labels.py              block label dictionary (385 entries, ru→zh/en)
+│   ├── middleware.py          language selection: ?lang= → session
+│   ├── langcheck.py           translation dictionary self-check
 │   ├── datasets.py            SINGLE PAGE DATA REGISTRY: context providers
 │   ├── models.py              application models: 52 models, 9 classes (stage 3)
 │   ├── admin.py               model registration, tabular inlines
 │   ├── tests.py               20 model tests: numbering, properties, constraints
 │   ├── tests_views.py         17 page and data tests (stage 4)
+│   ├── tests_i18n.py          25 tests: language switching and purity
+│   ├── templatetags/          template filters (tr, fmt)
 │   ├── management/commands/seed_demo.py   idempotent demo data loader
 │   └── migrations/
 ├── templates/
@@ -237,8 +244,52 @@ from the code.
 
 ```bash
 python tools/check_data.py     # 37 pages with data, 6 prototypes
-python manage.py test portal   # 37 tests: models and pages
+python manage.py test portal   # 62 tests: models, pages, languages
 ```
+
+## Interface language
+
+The interface switches between Russian, Chinese and English. The
+`RU · 中文 · EN` switcher sits on the right-hand side of the header.
+
+The mechanism is custom, without `gettext`: translations come from the
+project data rather than from `.po`/`.mo` files. There is therefore no
+second set of translations that could drift apart from the code.
+
+| Layer | Translation source | Volume |
+|---|---|---|
+| Page titles, purpose, content, route parameters | `portal/pages.py` registry (`ru`/`zh`/`en` fields) | 43 pages |
+| Module names M0..M11 | `portal/pages.py` registry | 12 modules |
+| Interface texts: navigation, buttons, section headings, footer | `portal/i18n.py`, the `UI` dictionary | 51 keys |
+| Data block labels: table and column headings, KPI captions, field keys, empty states | `portal/labels.py`, the `LABELS` dictionary | 385 strings |
+
+The language is chosen by `portal.middleware.LanguageMiddleware`: the
+`?lang=` parameter is stored in the session, so subsequent navigation keeps
+the chosen language. Table cell values are data (company names, document
+numbers, dates) and are not translated: the dictionary covers labels only.
+
+```bash
+/?lang=zh              # Chinese interface
+/orders/?lang=en       # English on the order list page
+```
+
+Page titles and block labels come from the same source as the stage 1–4
+documents, so the interface and the explanatory notes cannot diverge.
+Dictionary completeness is verified automatically: the providers are
+executed against the demo data and every label encountered must have a
+translation.
+
+```bash
+python tools/check_lang.py     # 385 block labels + 51 interface texts
+```
+
+The Chinese version of the page descriptions contains no Cyrillic (apart
+from the conventional designation ИНН) and the Russian version contains no
+CJK characters; this is enforced by tests. The legacy `purpose`/`content`
+keys in the page registry (aliases of the Chinese variants) are no longer
+read by the template directly — the view substitutes the translation for
+the current language, so a Russian heading is no longer followed by
+Chinese text.
 
 ## Application modules
 
@@ -263,11 +314,12 @@ python manage.py test portal   # 37 tests: models and pages
 ```bash
 python manage.py check          # configuration check
 python tools/check_routes.py    # page registry vs routes
-python tools/check_i18n.py      # three-language translation completeness
+python tools/check_i18n.py      # page registry translation completeness
 python tools/check_data.py      # pages wired to models
+python tools/check_lang.py      # interface translation completeness
 python tools/smoke_test.py      # smoke test: request every page
 python tools/gen_docs.py        # refresh docs/pages.{ru,zh,en}.md
-python manage.py test portal    # 37 tests: models and pages
+python manage.py test portal    # 62 tests: models, pages, languages
 ```
 
 ## Domain boundaries

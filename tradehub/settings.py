@@ -36,6 +36,9 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    # Собственный выбор языка интерфейса (?lang= -> сессия).
+    # Ставится сразу после SessionMiddleware: обращается к request.session.
+    'portal.middleware.LanguageMiddleware',
     'django.middleware.locale.LocaleMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -102,6 +105,11 @@ LOGOUT_REDIRECT_URL = 'portal:index'
 
 
 # --- Интернационализация --------------------------------------------------
+# Переключение языка интерфейса выполнено собственным механизмом
+# (portal/i18n.py + portal/labels.py + portal.middleware.LanguageMiddleware):
+# источник переводов — данные проекта (реестр страниц portal/pages.py и
+# словарь подписей portal/labels.py), а не файлы .po/.mo.
+# Настройки ниже — стандартные для Django и в переключении не участвуют.
 LANGUAGE_CODE = 'ru-ru'
 TIME_ZONE = 'Europe/Moscow'
 USE_I18N = True

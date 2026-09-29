@@ -5,23 +5,23 @@
 
   <header class="page-head">
     <div>
-      <p class="page-module"><span class="chip">{{ page.module }}</span>{{ page.zh }}</p>
-      <h1>{{ page.ru }}</h1>
+      <p class="page-module"><span class="chip">{{ page.module }}</span>{{ page.module_alt }}</p>
+      <h1>{{ page.title }}</h1>
     </div>
-    <span class="badge badge-ok">Данные моделей</span>
+    <span class="badge badge-ok">{{ ui.badge_data }}</span>
   </header>
 
   {% include "portal/_blocks.html" %}
 
   <section class="block">
-    <h2>Переходы к модулям</h2>
+    <h2>{{ ui.module_links }}</h2>
     <div class="link-grid">
       {% for module in nav_modules %}
         {% if module.code != "M0" %}
         <a class="link-tile" href="{{ module.pages.0.url }}">
           <span class="chip">{{ module.code }}</span>
-          <strong>{{ module.ru }}</strong>
-          <em>{{ module.zh }} · {{ module.pages|length }} стр.</em>
+          <strong>{{ module.title }}</strong>
+          <em>{{ module.alt }} · {{ module.pages|length }} {{ ui.pages_short }}</em>
         </a>
         {% endif %}
       {% endfor %}
