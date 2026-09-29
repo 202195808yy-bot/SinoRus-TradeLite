@@ -17,7 +17,7 @@ a deal (seller, buyer, carrier, customs broker) onto a single timeline.
 | 1 | Domain: overview of the area and entity list (document, 2 languages) | done |
 | 2 | Application page descriptions (document) | done |
 | 3 | Application models (document, 2 languages) | done |
-| 4 | Application page templates | in progress: pages wired to models |
+| 4 | Application page templates | done |
 | 5 | Application users | — |
 
 ## Mobile client
@@ -92,6 +92,8 @@ course_project/
 │   ├── Описание_страниц_приложения.docx        stage 2 document (ПЗ, 28 pp.)
 │   ├── Модели_приложения.docx                  stage 3 document, ПЗ (29 pp., 52 models, 23 constraints)
 │   ├── Модели_приложения_CN.docx               same in Chinese (28 pp.)
+│   ├── Представления_и_данные.docx             stage 4 document, ПЗ (26 pp., 43 pages, 45 models)
+│   ├── Представления_и_данные_CN.docx          same in Chinese (26 pp.)
 │   ├── 移动应用开发课设_学科领域与功能需求（俄文）.docx   mobile client, ПЗ (36 pp., 48 requirements)
 │   ├── 移动应用开发课设_学科领域与功能需求（中文）.docx   same in Chinese (30 pp.)
 │   └── mobile/                mobile client document in markdown, three languages
@@ -218,6 +220,13 @@ number. Amounts are rendered in Russian format (space as thousands
 separator, comma in the fractional part). When the user is not
 authenticated, corporate pages show the first enterprise's data and are
 flagged with the `demo` mode (access control is stage 5).
+
+The stage document is `docs/Представления_и_данные.docx` (ПЗ, 26 pp.) with
+a Chinese counterpart `docs/Представления_и_данные_CN.docx` (26 pp.). The
+correspondence tables are generated programmatically: each page provider
+is executed against the demo data and the actual database tables are
+determined by intercepting SQL queries, so the document cannot drift apart
+from the code.
 
 ```bash
 python tools/check_data.py     # 37 pages with data, 6 prototypes
