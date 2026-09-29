@@ -7,15 +7,21 @@
   перечней;
 * ``TabularInline`` для составных сущностей («документ — позиции»);
 * групповая регистрация однотипных справочников одним классом.
+
+Заголовки панели и подписи-``short_description`` обёрнуты в ``LazyRu``
+(``portal/admin_i18n.py``), поэтому следуют выбранному языку интерфейса
+вместе с названиями моделей и полей. ``site_title`` — имя продукта,
+оно одинаково на всех языках и не переводится.
 """
 
 from django.contrib import admin
 
 from . import models as m
+from .admin_i18n import LazyRu
 
-admin.site.site_header = "Администрирование TradeHub"
+admin.site.site_header = LazyRu("Администрирование TradeHub")
 admin.site.site_title = "TradeHub"
-admin.site.index_title = "Раздел предметной области"
+admin.site.index_title = LazyRu("Раздел предметной области")
 
 
 # ------------------------------------------------------- справочники
@@ -28,7 +34,7 @@ class CatalogAdmin(admin.ModelAdmin):
 
     def display(self, obj):
         return str(obj)
-    display.short_description = "значение"
+    display.short_description = LazyRu("значение")
 
 
 @admin.register(m.BorderCrossing)

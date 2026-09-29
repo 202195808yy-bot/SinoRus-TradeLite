@@ -122,14 +122,17 @@ course_project/
 │   ├── i18n.py                language switching: interface texts, helpers
 │   ├── labels.py              translation dictionary: labels, enumerations,
 │   │                          reference values (501 entries, ru→zh/en)
+│   ├── admin_labels.py        panel label dictionary (154 entries, ru→zh/en)
+│   ├── admin_i18n.py          lazy ORM label translation for /admin/
 │   ├── middleware.py          language selection: ?lang= / /lang/<code>/ → session
-│   ├── langcheck.py           self-check: labels, choices, reference values
+│   ├── langcheck.py           self-check: labels, choices, reference values,
+│   │                          panel labels
 │   ├── datasets.py            SINGLE PAGE DATA REGISTRY: context providers
 │   ├── models.py              application models: 52 models, 9 classes (stage 3)
 │   ├── admin.py               model registration, tabular inlines
 │   ├── tests.py               23 model tests: numbering, properties, constraints
 │   ├── tests_views.py         17 page and data tests (stage 4)
-│   ├── tests_i18n.py          52 tests: switching, translation, purity
+│   ├── tests_i18n.py          68 tests: switching, translation, purity
 │   ├── templatetags/          template filters (tr, fmt)
 │   ├── management/commands/seed_demo.py   idempotent demo data loader
 │   └── migrations/
@@ -199,7 +202,7 @@ Shared mechanisms: the `TimeStampedModel` abstract model with time stamps,
 ```bash
 python manage.py migrate           # create 53 tables
 python manage.py seed_demo         # demo deal chain
-python manage.py test portal       # 92 tests: models, pages, languages
+python manage.py test portal       # 108 tests: models, pages, languages
 ```
 
 The `seed_demo` command is idempotent (a second run creates no duplicates)
@@ -260,7 +263,7 @@ from the code.
 
 ```bash
 python tools/check_data.py     # 37 pages with data, 6 prototypes
-python manage.py test portal   # 92 tests: models, pages, languages
+python manage.py test portal   # 108 tests: models, pages, languages
 ```
 
 ## Interface language
@@ -280,6 +283,7 @@ second set of translations that could drift apart from the code.
 | Data block labels: table and column headings, KPI captions, field keys, empty states | `portal/labels.py`, the `LABELS` dictionary | 385 strings |
 | Model enumerations: statuses, document kinds, units of measure, roles, categories, yes/no | `portal/labels.py` (checked against model `choices`) | 108 of 117 |
 | Reference values: countries, currencies, units, document types, industries, goods categories | `portal/labels.py` (checked against the reference's `name_zh`) | 12 |
+| Administration panel labels: app, model and field names, `help_text`, `choices` labels, panel headings | `portal/admin_labels.py` (checked against the ORM metadata) | 286 |
 
 The language is chosen by `portal.middleware.LanguageMiddleware`: the
 `?lang=` parameter is stored in the session, so subsequent navigation keeps
@@ -308,8 +312,9 @@ separator (“Недовоз · Повреждение”, “RU — Росси�
 
 The same choice also applies to the administration panel at `/admin/`: its
 header carries the `RU · 中文 · EN` switcher (on the login page it sits next
-to the title), and the panel itself is translated by Django's built-in
-translations. The switcher links point to a dedicated route:
+to the title), and Django's own panel strings (buttons, pagination, themes)
+come from Django's built-in translations. The switcher links point to a
+dedicated route:
 
 ```bash
 /lang/zh/?next=%2Fadmin%2F   # Chinese panel, returning to /admin/
@@ -324,15 +329,44 @@ own paths only (open-redirect protection) and remains compatible with the
 chosen language: `auth_logout()` flushes the whole session, so the logout
 view restores the choice.
 
+**Panel labels come from the ORM metadata**, not from the page providers:
+the panel reads model and field names from the models themselves
+(`verbose_name`, `help_text`, `choices` labels). Django's built-in
+translations do not cover them, so the panel shell stayed Russian even with
+Chinese selected. The labels are wrapped in a lazy translation
+(`portal/admin_i18n.py`): the string is translated when it is rendered, once
+the language is known.
+
+| Wrapper | Wraps | Why |
+|---|---|---|
+| `LazyRu` | `verbose_name`, `help_text`, panel headings | not a `str` subclass: `django.utils.text.capfirst()` tests `isinstance(x, str)` and a subclass would return the Russian text unchanged |
+| `LazyChoice` | `choices` labels | a `str` subclass, because `portal/datasets.py` joins them and migrations serialize them; only `str()` is translated |
+
+The wrappers are applied by `PortalConfig.ready()` walking the models, so
+new models and fields are translated automatically. Migrations do not
+change: `makemigrations` compares `Options.original_attrs`, not the wrapped
+values. Labels are looked up first in `ADMIN_LABELS`, then — case
+insensitively — in `LABELS`: model labels are lower-case (`валюта`) while
+page labels are capitalised (`Валюта`), and the shared dictionary gives them
+one translation. Deliberate divergences (`создан` → “创建人”, whereas on the
+pages `Создан` is the state “已创建”) are listed explicitly in
+`admin_labels.OVERRIDES`.
+
+Free-form data is still shown as-is — including JSON field keys: the panel
+is an editing form, and a translated key would be written back to the
+database instead of the original. The language names in the switcher
+(`title="Русский"`) are also intentional: each language is labelled in
+itself.
+
 Page titles and block labels come from the same source as the stage 1–4
 documents, so the interface and the explanatory notes cannot diverge.
 Dictionary completeness is verified automatically: the providers are
-executed against the demo data, while enumerations and reference values are
-collected by walking the model metadata — every such string must have a
-translation.
+executed against the demo data, while enumerations, reference values and
+panel labels are collected by walking the model metadata — every such string
+must have a translation.
 
 ```bash
-python tools/check_lang.py     # 385 labels + 108 enums + 12 reference values
+python tools/check_lang.py   # 385 labels + 108 enums + 12 reference values + 286 panel labels
 ```
 
 The Chinese version of the page descriptions contains no Cyrillic (apart
@@ -342,6 +376,12 @@ keys in the page registry (aliases of the Chinese variants) are no longer
 read by the template directly — the view substitutes the translation for
 the current language, so a Russian heading is no longer followed by
 Chinese text.
+
+Panel pages are checked the same way — whole rendered HTML. Cyrillic is
+allowed only in free-form data (its words are collected from the demo
+database), in the switcher's language names (`title="Русский"`), and is
+ignored entirely inside markup and style comments, which the user never
+sees.
 
 ## Application modules
 
@@ -371,7 +411,7 @@ python tools/check_data.py      # pages wired to models
 python tools/check_lang.py      # interface translation completeness
 python tools/smoke_test.py      # smoke test: request every page
 python tools/gen_docs.py        # refresh docs/pages.{ru,zh,en}.md
-python manage.py test portal    # 92 tests: models, pages, languages
+python manage.py test portal    # 108 tests: models, pages, languages
 ```
 
 ## Domain boundaries

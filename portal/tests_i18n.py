@@ -20,15 +20,22 @@ import inspect
 import re
 from urllib.parse import quote
 
-from django.core.management import call_command
+from django.apps import apps
+from django.core.management import CommandError, call_command
 from django.test import Client, TestCase
+from django.utils import translation
 
+from . import models as m
+from .admin_i18n import localize
+from .admin_labels import OVERRIDES
 from .datasets import provider_for
 from .i18n import (DEFAULT_LANG, LABELS, LANGS, LANG_LABELS, LANG_SHORT, UI,
                    normalize, tr, translate_blocks, translate_cell, tr_value,
                    value_strings)
-from .langcheck import (ENUM_SKIP, anon_request, provider_pk, reference_mismatches,
-                        scan, untranslated_enums, untranslated_reference_values)
+from .langcheck import (ENUM_SKIP, admin_labels, admin_overrides, anon_request,
+                        provider_pk, reference_mismatches, scan,
+                        untranslated_admin_labels, untranslated_enums,
+                        untranslated_reference_values)
 from .pages import PAGES, content_of, module_name, purpose_of, title_of
 from .views import _page_data
 
@@ -38,10 +45,46 @@ CYR = re.compile(r"[\u0400-\u04ff]")
 #: кириллица, допустимая в китайских текстах (общепринятые обозначения)
 CYR_ALLOWED_IN_ZH = {"ИНН"}
 
+#: Комментарии разметки и стилей — не текст интерфейса, пользователь их
+#: не видит. В шаблонах проекта они по-русски, как и остальные пояснения.
+COMMENTS = re.compile(r"<!--.*?-->|/\*.*?\*/", re.S)
+
+#: кириллица, допустимая в панели: названия языков даны на самих языках
+#: (в переключателе ``title="Русский"`` — так же, как на страницах портала).
+CYR_ALLOWED_IN_ADMIN = {name for name in LANG_LABELS.values() if CYR.search(name)}
+
 
 def cyr_words(text):
     """Слова из кириллицы в строке."""
     return set(re.findall(r"[\u0400-\u04ff][\u0400-\u04ff\-.]*", text))
+
+
+def visible_text(html):
+    """Разметка без комментариев — только то, что видит пользователь."""
+    return COMMENTS.sub(" ", html)
+
+
+def demo_words():
+    """Кириллические слова из демонстрационных данных.
+
+    Свободные данные — наименования предприятий и товаров, номера, адреса,
+    свободные примечания, ключи JSON-полей — переводить нельзя, поэтому в
+    словаре их нет. Чтобы проверка «в китайской панели не осталось русских
+    подписей» не спотыкалась о данные, их слова собираются из самой базы.
+    """
+    from django.db import models as dj
+
+    out = set()
+    for model in apps.get_app_config("portal").get_models():
+        names = [f.name for f in model._meta.fields
+                 if isinstance(f, (dj.CharField, dj.TextField, dj.JSONField))]
+        if not names:
+            continue
+        for row in model.objects.values_list(*names):
+            for value in row:
+                if value is not None:
+                    out |= cyr_words(str(value))
+    return out
 
 
 class LanguageSelectionTest(TestCase):
@@ -393,6 +436,171 @@ class AdminLanguageTest(TestCase):
         self.client.get("/?lang=zh")
         self.assertEqual(self.client.get("/admin/").context["LANG"], "zh")
         self.assertEqual(self.client.get("/orders/").context["LANG"], "zh")
+
+
+class AdminLabelTest(TestCase):
+    """Подписи панели — названия моделей, полей и значений — следуют языку.
+
+    Панель берёт их из метаданных ORM, а не из провайдеров страниц, поэтому
+    без обёртки они всегда русские (``portal/admin_i18n.py``). Обёрток две:
+    ``LazyRu`` — для подписей, ``LazyChoice`` — для подписей ``choices``;
+    последние остаются настоящими строками, потому что ``portal/datasets.py``
+    их склеивает, а миграции записывают.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.contrib.auth import get_user_model
+        call_command("seed_demo", verbosity=0)
+        cls.root = get_user_model().objects.create_superuser(
+            username="root-labels", email="root@example.com",
+            password="admin-test-pass")
+
+    def setUp(self):
+        self.client = Client(HTTP_HOST="localhost")
+        self.client.force_login(self.root)
+
+    # ---------------------------------------------------------- словарь
+    def test_every_admin_label_is_translated(self):
+        missing = untranslated_admin_labels()
+        self.assertEqual(missing, set(),
+                         f"нет перевода подписей панели: {sorted(missing)}")
+
+    def test_admin_overrides_are_explicit(self):
+        """Расхождения с словарём страниц должны быть объявлены явно."""
+        self.assertEqual(set(admin_overrides()), set(OVERRIDES),
+                         f"переводы разъехались: {admin_overrides()}")
+
+    def test_admin_labels_are_not_empty(self):
+        self.assertGreater(len(admin_labels()), 200)
+
+    # ------------------------------------------------- ленивый перевод
+    def test_app_name_follows_language(self):
+        name = apps.get_app_config("portal").verbose_name
+        self.assertEqual(str(name), "Портал трансграничной торговли")
+        with translation.override("zh-hans"):
+            self.assertEqual(str(name), "跨境贸易门户")
+        with translation.override("en"):
+            self.assertEqual(str(name), "Cross-border trade portal")
+
+    def test_model_name_follows_language(self):
+        meta = m.Currency._meta
+        self.assertEqual(str(meta.verbose_name), "валюта")
+        self.assertEqual(str(meta.verbose_name_plural), "валюты")
+        with translation.override("zh-hans"):
+            self.assertEqual(str(meta.verbose_name), "币种")
+            self.assertEqual(str(meta.verbose_name_plural), "币种")
+        with translation.override("en"):
+            self.assertEqual(str(meta.verbose_name_plural), "Currencies")
+
+    def test_field_label_follows_language(self):
+        field = m.Shipment._meta.get_field("container_no")
+        self.assertEqual(str(field.verbose_name), "номер контейнера")
+        with translation.override("zh-hans"):
+            self.assertEqual(str(field.verbose_name), "集装箱号")
+        with translation.override("en"):
+            self.assertEqual(str(field.verbose_name), "Container number")
+
+    def test_choice_label_follows_language(self):
+        labels = dict(m.Document._meta.get_field("status").choices)
+        self.assertEqual(str(labels["draft"]), "Черновик")
+        with translation.override("zh-hans"):
+            self.assertEqual(str(labels["draft"]), "草稿")
+            self.assertEqual(str(labels["archived"]), "已归档")
+        with translation.override("en"):
+            self.assertEqual(str(labels["draft"]), "Draft")
+
+    def test_reference_str_follows_language(self):
+        """Внешние ключи справочников показываются переведёнными."""
+        country = m.Country.objects.get(name_ru="Россия")
+        uom = m.Uom.objects.get(name_ru="штука")
+        self.assertEqual(str(country), "RU — Россия")
+        self.assertEqual(str(uom), "штука (pcs)")
+        with translation.override("zh-hans"):
+            self.assertEqual(str(country), "RU — 俄罗斯")
+            self.assertEqual(str(uom), "件 (pcs)")
+
+    def test_free_data_is_not_translated(self):
+        """Свободные данные остаются как есть на любом языке."""
+        good = m.Good.objects.first()
+        with translation.override("zh-hans"):
+            self.assertNotEqual(str(good), "")
+            self.assertEqual(str(good), str(good.raw) if hasattr(good, "raw")
+                             else str(good))
+
+    # ----------------------------- подписи choices остаются строками
+    def test_choice_label_stays_a_string(self):
+        """Регресс: ``portal/datasets.py`` склеивает подписи ``choices``."""
+        choices = list(m.Incident._meta.get_field("kind").choices)
+        joined = " · ".join(label for _value, label in choices)
+        self.assertIsInstance(joined, str)
+        self.assertEqual(joined,
+                         " · ".join(label.raw for _v, label in choices))
+        label = choices[0][1]
+        self.assertIsInstance(label, str)          # сравнение — по исходной
+        self.assertEqual(label, label.raw)
+
+    # -------------------------------------------------- панель целиком
+    def test_admin_shell_has_no_cyrillic(self):
+        """Страницы без данных: интерфейс полностью переведён.
+
+        Комментарии разметки и стилей не считаются текстом интерфейса,
+        а названия языков в переключателе даны на самих языках.
+        """
+        pages = ("/admin/", "/admin/portal/", "/admin/portal/currency/",
+                 "/admin/portal/auditlog/")
+        for code in ("zh", "en"):
+            self.client.get("/lang/%s/?next=/admin/" % code)
+            for url in pages:
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, 200, url)
+                offenders = (cyr_words(visible_text(response.content.decode("utf-8")))
+                             - CYR_ALLOWED_IN_ADMIN)
+                self.assertEqual(offenders, set(), f"{code} {url}: {offenders}")
+
+    def test_admin_pages_have_no_russian_interface(self):
+        """На страницах с данными кириллица остаётся только в данных."""
+        allowed = demo_words() | CYR_ALLOWED_IN_ADMIN
+        pages = ("/admin/portal/order/", "/admin/portal/order/1/change/",
+                 "/admin/portal/good/", "/admin/portal/good/1/change/",
+                 "/admin/portal/enterprise/", "/admin/portal/document/",
+                 "/admin/portal/statement/1/change/")
+        for code in ("zh", "en"):
+            self.client.get("/lang/%s/?next=/admin/" % code)
+            for url in pages:
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, 200, url)
+                offenders = (cyr_words(visible_text(response.content.decode("utf-8")))
+                             - allowed)
+                self.assertEqual(offenders, set(), f"{code} {url}: {offenders}")
+
+    def test_admin_headers_are_translated(self):
+        self.client.get("/lang/zh/?next=/admin/")
+        html = self.client.get("/admin/portal/order/").content.decode("utf-8")
+        for word in ("编号", "状态", "金额", "签署日期"):
+            self.assertIn(word, html, f"заголовок {word} не найден")
+
+    # ------------------------------------------------------- механизм
+    def test_localize_is_idempotent(self):
+        self.assertEqual(localize(), 0,
+                         "повторная локализация обернула что-то ещё")
+
+    def test_no_new_migrations(self):
+        """Обёртки подписей не должны порождать миграции."""
+        try:
+            call_command("makemigrations", "--check", "--dry-run", verbosity=0)
+        except (SystemExit, CommandError):
+            self.fail("makemigrations видит изменения: обёртки подписей "
+                      "попали в миграции")
+
+    def test_language_does_not_leak_between_requests(self):
+        """Локаль действует только на время запроса."""
+        before = translation.get_language()
+        self.client.get("/admin/")
+        self.assertEqual(translation.get_language(), before)
+        self.client.get("/lang/zh/?next=/admin/")
+        self.client.get("/admin/")
+        self.assertEqual(translation.get_language(), before)
 
 
 class EnumLabelTest(TestCase):

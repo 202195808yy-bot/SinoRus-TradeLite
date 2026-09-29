@@ -1,15 +1,20 @@
 # -*- coding: utf-8 -*-
 """Проверка полноты словаря переводов (portal/labels.py, portal/i18n.py).
 
-Проверяются три вещи:
+Проверяются четыре вещи:
 
 * подписи блоков данных — прогон всех провайдеров portal/datasets.py;
 * перечисления из ``choices`` моделей (статусы, виды документов, единицы
   измерения) — они попадают в ячейки значениями, а не подписями;
-* тексты оболочки интерфейса (portal/i18n.UI).
+* значения справочников — страны, валюты, типы документов, отрасли,
+  категории товаров;
+* подписи административной панели — названия приложения, моделей и полей
+  (``portal/admin_labels.py``), а также тексты оболочки интерфейса
+  (portal/i18n.UI).
 
 Ошибкой считается непереведённая подпись блока, непереведённое
-перечисление и пустой перевод в текстах оболочки.
+перечисление, непереведённое значение справочника, непереведённая подпись
+панели и пустой перевод в текстах оболочки.
 
 Запуск:  python tools/check_lang.py
 """
@@ -24,8 +29,9 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "tradehub.settings")
 django.setup()
 
 from portal.i18n import LANGS, UI, tr                      # noqa: E402
-from portal.langcheck import (ENUM_SKIP, enum_labels, reference_values,  # noqa: E402
-                              scan, untranslated_enums,
+from portal.langcheck import (ENUM_SKIP, admin_labels, admin_overrides,  # noqa: E402
+                              enum_labels, reference_values, scan,
+                              untranslated_admin_labels, untranslated_enums,
                               untranslated_reference_values)
 
 CYRILLIC = set("абвгдеёжзийклмнопрстуфхцчшщъыьэюя")
@@ -76,7 +82,21 @@ def main():
         for text in sorted(bad_refs):
             print(f"      - {text!r}")
 
-    # --- 4. Тексты оболочки интерфейса --------------------------------
+    # --- 4. Подписи административной панели ---------------------------
+    admin = admin_labels()
+    bad_admin = untranslated_admin_labels()
+    print(f"\n  Подписей админ-панели:        {len(admin)}")
+    print(f"  Переведено (portal/labels):   {len(admin) - len(bad_admin)}")
+    overrides = admin_overrides()
+    print(f"  Исключений из словаря страниц: {len(overrides)}"
+          f" ({', '.join(sorted(overrides))})")
+    if bad_admin:
+        errors.append(f"нет перевода для {len(bad_admin)} подписей админ-панели")
+        print("\n  НЕ ПЕРЕВЕДЕНО:")
+        for text in sorted(bad_admin):
+            print(f"      - {text!r}")
+
+    # --- 5. Тексты оболочки интерфейса --------------------------------
     print(f"\n  Текстов оболочки (portal/i18n.UI): {len(UI)}")
     for key, row in UI.items():
         if len(row) != 3:
@@ -86,7 +106,7 @@ def main():
             if not str(row[idx]).strip():
                 errors.append(f"UI[{key!r}]: пустой перевод для {lang}")
 
-    # --- 5. Пробелы: остались ли русские буквы в zh-переводах ---------
+    # --- 6. Пробелы: остались ли русские буквы в zh-переводах ---------
     bad = []
     for key, row in UI.items():
         for idx, lang in enumerate(LANGS):
@@ -102,7 +122,7 @@ def main():
         for key, lang, text in bad[:10]:
             print(f"      · {key} [{lang}]: {text}")
 
-    # --- 6. Демонстрация перевода -------------------------------------
+    # --- 7. Демонстрация перевода -------------------------------------
     print("\n  Примеры перевода:")
     for sample in ("Заказы", "Статус", "Подписание", "Инвойс", "Сертификаты"):
         print(f"      {sample:<18} zh={tr(sample, 'zh'):<16} en={tr(sample, 'en')}")
@@ -115,7 +135,7 @@ def main():
             print(f"  - {err}")
         sys.exit(1)
     print("ПРОВЕРКА ПРОЙДЕНА: подписи блоков, перечисления, значения "
-          "справочников и тексты оболочки переведены.")
+          "справочников, подписи админ-панели и тексты оболочки переведены.")
     print("=" * 72)
 
 
