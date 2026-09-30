@@ -132,7 +132,7 @@ course_project/
 │   ├── admin.py               model registration, tabular inlines
 │   ├── tests.py               23 model tests: numbering, properties, constraints
 │   ├── tests_views.py         17 page and data tests (stage 4)
-│   ├── tests_i18n.py          76 tests: switching, translation, purity
+│   ├── tests_i18n.py          80 tests: switching, translation, purity
 │   ├── templatetags/          template filters (tr, fmt)
 │   ├── management/commands/seed_demo.py   idempotent demo data loader
 │   └── migrations/
@@ -202,7 +202,7 @@ Shared mechanisms: the `TimeStampedModel` abstract model with time stamps,
 ```bash
 python manage.py migrate           # create 53 tables
 python manage.py seed_demo         # demo deal chain
-python manage.py test portal       # 116 tests: models, pages, languages
+python manage.py test portal       # 120 tests: models, pages, languages
 ```
 
 The `seed_demo` command is idempotent (a second run creates no duplicates)
@@ -263,7 +263,7 @@ from the code.
 
 ```bash
 python tools/check_data.py     # 37 pages with data, 6 prototypes
-python manage.py test portal   # 116 tests: models, pages, languages
+python manage.py test portal   # 120 tests: models, pages, languages
 ```
 
 ## Interface language
@@ -286,6 +286,7 @@ second set of translations that could drift apart from the code.
 | Administration panel labels: app, model and field names, `help_text`, `choices` labels, panel headings | `portal/admin_labels.py` (checked against the ORM metadata) | 286 |
 | Labels the panel keeps in the database: permissions (`Permission.name`) and log messages (`LogEntry.change_message`) | `portal/admin_i18n.py` — rebuilt from the `codename` and from the translated field names | 2 mechanisms |
 | Labels inside model `__str__` (“Профиль: …”, “пошлина”, “НДС”, “Диалог: …”, “Перевод #…”) | `portal/labels.py`, through `i18n.label()` | 3 new words |
+| Labels of the auto-created M2M relationship models (“Связь dialog-user”), shown on the delete confirmation page | `portal/admin_labels.py`, through `admin_i18n.tr_through_label()` | 2 words × 4 models |
 
 The language is chosen by `portal.middleware.LanguageMiddleware`: the
 `?lang=` parameter is stored in the session, so subsequent navigation keeps
@@ -385,6 +386,21 @@ through `i18n.label()`; the `Profile` label matches the model name
 (“Пользователь” / “用户”), the way this entity is named in the stage 1
 documents.
 
+**A separate case is the auto-created M2M relationship models**
+(`Dialog.participants`, `User.groups` and others). Django builds their
+label from a translatable string “%(from)s-%(to)s relationship” and
+substitutes the model and field names right away, while importing
+`models.py`, with the default locale active — so it becomes an ordinary
+Russian string, “Связь dialog-user”, which the lazy translation no longer
+picks up. On top of that, such a model has no `__str__` of its own, so the
+panel displayed the service form “Dialog_participants object (1)”. Both are
+visible on the delete confirmation page, where Django lists the related
+objects. `get_models()` (it does not return auto-created models —
+`include_auto_created` is off by default) is therefore walked separately:
+only the first word of the label is translated, while “dialog-user” stays,
+being a technical name identical in every language; and a readable
+`__str__` is set, like “Диалог: ORD-2026-0001 — ivanov”.
+
 Page titles and block labels come from the same source as the stage 1–4
 documents, so the interface and the explanatory notes cannot diverge.
 Dictionary completeness is verified automatically: the providers are
@@ -393,7 +409,7 @@ panel labels are collected by walking the model metadata — every such string
 must have a translation.
 
 ```bash
-python tools/check_lang.py   # 385 labels + 108 enums + 12 reference values + 286 panel labels
+python tools/check_lang.py   # 385 labels + 108 enums + 12 reference values + 286 panel labels + 8 M2M relationship labels
 ```
 
 The Chinese version of the page descriptions contains no Cyrillic (apart
@@ -439,7 +455,7 @@ python tools/check_data.py      # pages wired to models
 python tools/check_lang.py      # interface translation completeness
 python tools/smoke_test.py      # smoke test: request every page
 python tools/gen_docs.py        # refresh docs/pages.{ru,zh,en}.md
-python manage.py test portal    # 116 tests: models, pages, languages
+python manage.py test portal    # 120 tests: models, pages, languages
 ```
 
 ## Domain boundaries

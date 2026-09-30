@@ -46,6 +46,16 @@ Django строит подписи панели из метаданных мод
   перед тем, как Django собирает фразу).
 
 Обе обёртки включаются тем же ``localize()``.
+
+Третья группа подписей тоже не проходит через метаданные приложения —
+это **автосозданные модели связи M2M** (``Dialog.participants``,
+``User.groups`` и т. п.). Их ``verbose_name`` Django собирает из
+переводимой строки и подставляет имена модели и поля сразу, при импорте
+``models.py``, когда активна локаль по умолчанию: получается обычная
+русская строка «Связь dialog-user», которую ленивый перевод уже не берёт.
+Плюс у такой модели нет своего ``__str__``, поэтому панель показывала
+служебное «Dialog_participants object (1)». И то и другое видно на
+странице подтверждения удаления — см. ``_localize_through_models()``.
 """
 
 import json
@@ -359,6 +369,103 @@ def _localize_log_entry():
     return True
 
 
+#: Начало подписи автосозданной модели связи M2M. Django собирает её из
+#: переводимой строки «%(from)s-%(to)s relationship» и подставляет имена
+#: модели и поля сразу, при импорте ``models.py`` (см. ``tr_through_label``).
+THROUGH_HEADS = ("Связь", "Связи")
+
+
+def tr_through_label(text, lang):
+    """Подпись связи M2M: переводится слово, остаток — техническое имя.
+
+    Подпись автосозданной модели выглядит как «Связь dialog-user»: первое
+    слово — интерфейсное (его и переводим), «dialog-user» — имена модели
+    и поля, они одинаковы на всех языках и остаются как есть.
+    """
+    head, sep, tail = text.partition(" ")
+    if sep and head in THROUGH_HEADS:
+        return tr_admin(head, lang) + sep + tail
+    return tr_admin(text, lang)
+
+
+class LazyThrough(LazyRu):
+    """Подпись автосозданной модели связи M2M (см. ``tr_through_label``)."""
+
+    __slots__ = ()
+
+    def __str__(self):
+        return tr_through_label(self.ru, active_lang())
+
+
+def _wrap_through(obj, attr):
+    """Оборачивает подпись связи. True — если обернул."""
+    value = getattr(obj, attr, None)
+    if isinstance(value, str) and not isinstance(value, LazyRu) and value:
+        setattr(obj, attr, LazyThrough(value))
+        return True
+    return False
+
+
+def _localize_through_str(model):
+    """``__str__`` связи M2M: «<объект> — <объект>» вместо «… object (1)».
+
+    У автосозданной модели своего ``__str__`` нет, и наследуется
+    ``Model.__str__`` — служебный ``repr`` вида «Dialog_participants
+    object (1)». На странице подтверждения удаления Django перечисляет
+    связанные объекты именно через ``str()``, поэтому пользователь видел
+    техническое имя класса с номером строки вместо «какой это диалог и
+    кто его участник».
+    """
+    original = model.__str__
+    if getattr(original, "_portal_lazy", False):
+        return False
+
+    def __str__(self):
+        parts = []
+        for field in self._meta.fields:
+            if not field.is_relation or not field.many_to_one:
+                continue
+            if getattr(self, field.attname, None) is None:
+                continue
+            try:
+                parts.append(str(getattr(self, field.name)))
+            except Exception:                              # noqa: BLE001
+                continue
+        return " — ".join(parts) if parts else original(self)
+
+    __str__._portal_lazy = True
+    model.__str__ = __str__
+    return True
+
+
+def _localize_through_models():
+    """Подписи и ``__str__`` автосозданных моделей связи M2M.
+
+    ``AppConfig.get_models()`` их не возвращает (``include_auto_created``
+    по умолчанию ``False``), поэтому ``localize()`` их пропускал — а они
+    видны на странице подтверждения удаления. В китайской панели выходило
+
+        Связи dialog-user: 2
+        Связь dialog-user: Dialog_participants object (1)
+
+    то есть русская подпись рядом с китайскими, и служебное имя класса.
+    """
+    count = 0
+    seen = set()
+    for config in apps.get_app_configs():
+        for model in config.get_models():
+            for field in model._meta.many_to_many:
+                through = field.remote_field.through
+                if through in seen or not through._meta.auto_created:
+                    continue
+                seen.add(through)
+                meta = through._meta
+                count += _wrap_through(meta, "verbose_name")
+                count += _wrap_through(meta, "verbose_name_plural")
+                count += _localize_through_str(through)
+    return count
+
+
 def localize():
     """Оборачивает подписи приложения, моделей, полей и перечислений.
 
@@ -380,6 +487,7 @@ def localize():
             count += _wrap_choices(field)
         if model.__name__ in REFERENCE_MODELS:
             count += _localize_str(model)
+    count += _localize_through_models()
     count += _localize_permission()
     count += _localize_log_entry()
     return count

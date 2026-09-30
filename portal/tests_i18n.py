@@ -36,9 +36,10 @@ from .i18n import (DEFAULT_LANG, LABELS, LANGS, LANG_LABELS, LANG_SHORT, UI,
                    normalize, tr, translate_blocks, translate_cell, tr_value,
                    value_strings)
 from .langcheck import (ENUM_SKIP, admin_labels, admin_overrides, anon_request,
-                        provider_pk, reference_mismatches, scan,
+                        provider_pk, reference_mismatches, scan, through_labels,
                         untranslated_admin_labels, untranslated_enums,
-                        untranslated_reference_values)
+                        untranslated_reference_values,
+                        untranslated_through_labels)
 from .pages import PAGES, content_of, module_name, purpose_of, title_of
 from .views import _page_data
 
@@ -482,6 +483,12 @@ class AdminLabelTest(TestCase):
     по-русски: ``Permission.name`` (собирается при ``migrate`` как «Can add
     <verbose_name_raw>») и ``LogEntry.change_message`` (названия изменённых
     полей записываются в момент правки). Обе переводятся на выводе.
+
+    Третья группа — **автосозданные модели связи M2M**: их ``verbose_name``
+    Django собирает при импорте ``models.py`` из переводимой строки, а
+    ``get_models()`` такие модели не возвращает, поэтому их пропускал и
+    ``localize()``, и обход метаданных. Видны они на странице
+    подтверждения удаления.
     """
 
     @classmethod
@@ -626,7 +633,14 @@ class AdminLabelTest(TestCase):
                  "/admin/portal/translation/", "/admin/portal/message/",
                  "/admin/portal/good/add/", "/admin/portal/tariff/add/",
                  "/admin/auth/user/", "/admin/auth/user/1/change/",
-                 "/admin/auth/group/", "/admin/auth/group/add/")
+                 "/admin/auth/group/", "/admin/auth/group/add/",
+                 # Страницы подтверждения удаления: Django перечисляет на
+                 # них связанные объекты, в том числе через автосозданные
+                 # модели связи M2M («Связи dialog-user»). Их пропуск
+                 # скрывал и русскую подпись, и служебное «… object (1)».
+                 "/admin/portal/dialog/1/delete/",
+                 "/admin/portal/order/1/delete/",
+                 "/admin/auth/user/2/delete/")
         for code in ("zh", "en"):
             self.client.get("/lang/%s/?next=/admin/" % code)
             for url in pages:
@@ -691,6 +705,62 @@ class AdminLabelTest(TestCase):
         entry = LogEntry(object_repr="x", change_message="Изменено вручную.")
         with translation.override("zh-hans"):
             self.assertEqual(entry.get_change_message(), "Изменено вручную.")
+
+    # -------------------- автосозданные модели связи M2M (delete-страница)
+    def test_every_through_label_is_translated(self):
+        """Для каждой подписи связи M2M есть перевод."""
+        missing = untranslated_through_labels()
+        self.assertEqual(missing, set(),
+                         f"нет перевода подписей связей M2M: {sorted(missing)}")
+        self.assertGreaterEqual(len(through_labels()), 4)
+
+    def test_through_label_follows_language(self):
+        """Подпись связи M2M переводится, имена модели и поля — нет.
+
+        Django собирает ``verbose_name`` автосозданной модели из
+        переводимой строки «%(from)s-%(to)s relationship» и подставляет
+        имена модели и поля **сразу**, при импорте ``models.py``, когда
+        активна локаль по умолчанию. Полученная строка обычная, уже
+        русская, и ленивый перевод её не берёт — ключа в словаре нет.
+        Поэтому переводится только первое слово, а «dialog-user» остаётся:
+        это техническое имя, одинаковое на всех языках.
+        """
+        through = m.Dialog._meta.get_field("participants").remote_field.through
+        self.assertTrue(through._meta.auto_created)
+        self.assertEqual(str(through._meta.verbose_name), "Связь dialog-user")
+        with translation.override("zh-hans"):
+            self.assertEqual(str(through._meta.verbose_name), "关系 dialog-user")
+            self.assertEqual(str(through._meta.verbose_name_plural),
+                             "关系 dialog-user")
+        with translation.override("en"):
+            self.assertEqual(str(through._meta.verbose_name),
+                             "Relationship dialog-user")
+            self.assertEqual(str(through._meta.verbose_name_plural),
+                             "Relationships dialog-user")
+
+    def test_through_str_is_readable(self):
+        """У автосозданной связи своего ``__str__`` нет — задаём читаемый.
+
+        Штатно наследуется ``Model.__str__``, то есть «Dialog_participants
+        object (1)»: на странице подтверждения удаления пользователь видел
+        служебное имя класса вместо «какой это диалог и кто участник».
+        """
+        through = m.Dialog._meta.get_field("participants").remote_field.through
+        obj = through.objects.first()
+        text = str(obj)
+        self.assertNotIn("object (", text)
+        self.assertIn("—", text)
+
+    def test_delete_page_shows_no_russian(self):
+        """Страница подтверждения удаления переведена целиком."""
+        allowed = demo_words() | CYR_ALLOWED_IN_ADMIN
+        for code in ("zh", "en"):
+            self.client.get("/lang/%s/?next=/admin/" % code)
+            response = self.client.get("/admin/portal/dialog/1/delete/")
+            self.assertEqual(response.status_code, 200)
+            offenders = (cyr_words(visible_text(response.content.decode("utf-8")))
+                         - allowed)
+            self.assertEqual(offenders, set(), f"{code}: {offenders}")
 
     # ----------------------------------- подписи внутри ``__str__`` моделей
     def test_model_str_labels_follow_language(self):

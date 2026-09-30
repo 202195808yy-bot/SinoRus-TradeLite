@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Самопроверка словаря переводов.
 
-Проверяются четыре независимые вещи:
+Проверяются пять независимых вещей:
 
 * ``scan()`` — прогоняет все провайдеры ``portal/datasets.py`` на текущих
   данных и собирает **подписи блоков**, для которых нет перевода;
@@ -13,7 +13,10 @@
   единицы измерения, типы документов, отрасли, категории товаров);
 * ``admin_labels()`` — **подписи административной панели** (``verbose_name``
   приложения, моделей и полей, ``help_text``). Панель берёт их из метаданных
-  ORM, а не из провайдеров страниц, поэтому они проверяются отдельно.
+  ORM, а не из провайдеров страниц, поэтому они проверяются отдельно;
+* ``through_labels()`` — подписи **автосозданных моделей связи M2M**
+  («Связь dialog-user»). Их нет в ``get_models()``, а на странице
+  подтверждения удаления они видны, поэтому проверяются отдельным списком.
 
 Вторая проверка важна: ``scan()`` видит только подписи, а перечисления
 приходят значениями ячеек. Пока проверялись одни подписи, 101 подпись
@@ -187,6 +190,39 @@ def untranslated_admin_labels():
     from .admin_i18n import tr_admin
 
     return {s for s in admin_labels() if tr_admin(s, "zh") == s}
+
+
+def through_labels():
+    """Подписи автосозданных моделей связи M2M (все приложения).
+
+    ``AppConfig.get_models()`` такие модели не возвращает
+    (``include_auto_created`` по умолчанию ``False``), а панель их
+    показывает: на странице подтверждения удаления Django перечисляет
+    связанные объекты — «Связи dialog-user: 2». Подпись составная
+    («Связь» плюс имена модели и поля), поэтому переводится не так, как
+    обычная подпись панели, и проверяется отдельно.
+    """
+    out = set()
+    seen = set()
+    for config in apps.get_app_configs():
+        for model in config.get_models():
+            for field in model._meta.many_to_many:
+                through = field.remote_field.through
+                if through in seen or not through._meta.auto_created:
+                    continue
+                seen.add(through)
+                for attr in ("verbose_name", "verbose_name_plural"):
+                    raw = _raw_text(getattr(through._meta, attr, None))
+                    if raw:
+                        out.add(raw)
+    return out
+
+
+def untranslated_through_labels():
+    """Подписи связей M2M, для которых нет перевода."""
+    from .admin_i18n import tr_through_label
+
+    return {s for s in through_labels() if tr_through_label(s, "zh") == s}
 
 
 def admin_overrides():
