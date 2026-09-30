@@ -8,13 +8,34 @@
 'use strict';
 const fs = require('fs');
 const assert = require('assert');
+const vm = require('vm');
 
 const target = process.argv[2];
 const CODE = fs.readFileSync(target, 'utf8');
 
+// ---------------------------------------------------- синтаксис как в браузере
+// `vm.Script` компилирует файл как обычный скрипт и НЕ оборачивает его в
+// функцию — поэтому `return` вне функции здесь падает. А `node --check`
+// (обёртка CommonJS) и `new Function` такую ошибку скрывают: код «проходит
+// проверку», но в браузере не выполняется ни одна строка. Именно на этом
+// сломался keep-scroll.js: скрипт грузился с кодом 200 и молча ничего не
+// делал. Поэтому проверка синтаксиса идёт первой и без обёртки.
+try {
+    new vm.Script(CODE);
+    console.log('  ok  синтаксис: файл разбирается как обычный скрипт');
+} catch (err) {
+    console.error('  FAIL синтаксис (как в браузере): ' + err.message);
+    console.error('       node --check такую ошибку не показывает — ' +
+        'он оборачивает код в функцию');
+    process.exit(1);
+}
+
 // ---------------------------------------------------------------- окружение
 
-function makePanel({ attrs = {}, id = null, scrollHeight = 2000, clientHeight = 800 } = {}) {
+function makePanel({
+    attrs = {}, id = null, scrollHeight = 2000, clientHeight = 800,
+    offsetHeight = null, docTop = 100,
+} = {}) {
     let top = 0;
     const listeners = {};
     const panel = {
@@ -22,6 +43,10 @@ function makePanel({ attrs = {}, id = null, scrollHeight = 2000, clientHeight = 
         style: {},
         scrollHeight,
         clientHeight,
+        // высота панели на странице; по умолчанию совпадает с видимой
+        offsetHeight: offsetHeight === null ? clientHeight : offsetHeight,
+        docTop,                     // положение панели в координатах документа
+        env: { winY: 0, docHeight: 4000 },
         get scrollTop() {
             return top;
         },
@@ -31,6 +56,9 @@ function makePanel({ attrs = {}, id = null, scrollHeight = 2000, clientHeight = 
             // чтобы тест мог «дорастить» содержимое после первой попытки
             top = Math.max(0, Math.min(value, panel.scrollHeight - panel.clientHeight));
         },
+        // координаты относительно окна: top = положение в документе
+        // минус текущая прокрутка страницы
+        getBoundingClientRect: () => ({ top: panel.docTop - panel.env.winY }),
         getAttribute: (name) => (name in attrs ? attrs[name] : null),
         hasAttribute: (name) => name in attrs,
         addEventListener: (type, fn) => {
@@ -51,13 +79,22 @@ function makeStorage(backing) {
 }
 
 /** Одна «загрузка страницы»: свежие document/window, общее хранилище. */
-function loadPage(panels, backing, { readyState = 'loading' } = {}) {
+function loadPage(panels, backing, {
+    readyState = 'loading', docHeight = 4000, innerHeight = 700,
+} = {}) {
     const rafQueue = [];
     const docListeners = {};
     const winListeners = {};
+    // общая для панелей и окна «прокрутка страницы»
+    const env = { winY: 0, docHeight: innerHeight + docHeight };
+
+    panels.forEach((p) => {
+        p.env = env;
+    });
 
     const document = {
         readyState,
+        documentElement: { style: {} },
         querySelectorAll: (selector) =>
             selector === '[data-keep-scroll]'
                 ? panels.filter((p) => p.hasAttribute('data-keep-scroll'))
@@ -68,6 +105,14 @@ function loadPage(panels, backing, { readyState = 'loading' } = {}) {
         },
     };
     const window = {
+        innerHeight,
+        get scrollY() {
+            return env.winY;
+        },
+        // настоящая прокрутка упирается в конец документа
+        scrollTo: (x, value) => {
+            env.winY = Math.max(0, Math.min(value, env.docHeight - innerHeight));
+        },
         requestAnimationFrame: (fn) => rafQueue.push(fn),
         addEventListener: (type, fn) => {
             (winListeners[type] = winListeners[type] || []).push(fn);
@@ -78,6 +123,8 @@ function loadPage(panels, backing, { readyState = 'loading' } = {}) {
         document, window, makeStorage(backing));
 
     return {
+        env,
+        scrollPageTo: (y) => window.scrollTo(0, y),
         flushFrames: () => {
             while (rafQueue.length) {
                 rafQueue.shift()();
@@ -86,6 +133,7 @@ function loadPage(panels, backing, { readyState = 'loading' } = {}) {
         domReady: () => (docListeners.DOMContentLoaded || []).forEach((fn) => fn({})),
         fireLoad: () => (winListeners.load || []).forEach((fn) => fn({})),
         firePageHide: () => (winListeners.pagehide || []).forEach((fn) => fn({})),
+        fireWindowScroll: () => (winListeners.scroll || []).forEach((fn) => fn({})),
     };
 }
 
@@ -192,14 +240,16 @@ check('возврат повторяется на load, если контент 
     const backing = new Map();
     backing.set(PORTAL_KEY, '900');
 
-    // первая попытка: панель ещё «не имеет» содержимого
+    // первая попытка: содержимое ещё «дорисовывается» — прокрутка всего 100px.
+    // Панель при этом обязана оставаться прокручиваемой самой
+    // (scrollHeight > clientHeight), иначе это уже режим узкого окна.
     const early = makePanel({
         attrs: { 'data-keep-scroll': 'sidebar' },
-        scrollHeight: 800, clientHeight: 800,
+        scrollHeight: 900, clientHeight: 800,
     });
     const page = loadPage([early], backing);
     page.domReady();
-    assert.strictEqual(early.scrollTop, 0, 'пока нечего прокручивать');
+    assert.strictEqual(early.scrollTop, 100, 'пока упёрлись в предел');
 
     // контент отрисовался — повтор на load должен сработать
     early.scrollHeight = 2000;
@@ -257,6 +307,84 @@ check('недоступное хранилище не ломает страни�
         rafQueue.shift()();
     }
     assert.strictEqual(sidebar.scrollTop, 700, 'страница продолжает работать');
+});
+
+// ---------- узкое окно: панель растянута, прокручивается страница ----------
+// Ниже @media (max-width: 900px) у .sidebar снимаются position: sticky и
+// max-height, поэтому она перестаёт прокручиваться сама, а тянется на
+// полторы тысячи пикселей перед содержимым. Тогда сохранять нужно
+// прокрутку страницы.
+
+function stacked() {
+    return {
+        attrs: { 'data-keep-scroll': 'sidebar' },
+        scrollHeight: 1737, clientHeight: 1737,   // содержимое == высота
+        offsetHeight: 1737, docTop: 100,          // панель — сразу под шапкой
+    };
+}
+
+// 10. Панель не прокручивается сама — сохраняется прокрутка страницы.
+check('узкое окно: сохраняется прокрутка страницы, а не панели', () => {
+    const backing = new Map();
+    const sidebar = makePanel(stacked());
+    const page = loadPage([sidebar], backing);
+    page.domReady();
+
+    assert.strictEqual(sidebar.scrollTop, 0, 'панель сама не прокручивается');
+    page.scrollPageTo(900);
+    page.fireWindowScroll();
+    page.flushFrames();
+
+    assert.strictEqual(backing.get(PORTAL_KEY), '900');
+});
+
+// 11. После перехода прокрутка страницы возвращается.
+check('узкое окно: прокрутка страницы возвращается после перехода', () => {
+    const backing = new Map();
+    const before = makePanel(stacked());
+    const page1 = loadPage([before], backing);
+    page1.domReady();
+    page1.scrollPageTo(900);
+    page1.fireWindowScroll();
+    page1.flushFrames();
+
+    const after = makePanel(stacked());
+    const page2 = loadPage([after], backing);
+    assert.strictEqual(page2.env.winY, 0, 'новая страница открылась сверху');
+    page2.domReady();
+    assert.strictEqual(page2.env.winY, 900, 'прокрутка страницы восстановлена');
+});
+
+// 12. Ушли, читая содержимое, — к панели читателя не возвращаем.
+check('узкое окно: ушли из содержимого — к панели не возвращаем', () => {
+    const backing = new Map();
+    const before = makePanel(stacked());
+    const page1 = loadPage([before], backing);
+    page1.domReady();
+    page1.scrollPageTo(2600);           // панель заканчивается на 100 + 1737
+    page1.fireWindowScroll();
+    page1.flushFrames();
+    assert.strictEqual(backing.get(PORTAL_KEY), '2600');
+
+    const after = makePanel(stacked());
+    const page2 = loadPage([after], backing);
+    page2.domReady();
+    assert.strictEqual(page2.env.winY, 0,
+        'страница сверху: это был переход из содержимого');
+});
+
+// 13. Документ короче сохранённого положения — страница не ломается.
+check('узкое окно: документ короче — возврат просто упирается в конец', () => {
+    const backing = new Map();
+    // 1500 — внутри панели (100…1837), то есть возврат полагается,
+    // но документ короче и прокрутка упирается в конец
+    backing.set(PORTAL_KEY, '1500');
+
+    const sidebar = makePanel(stacked());
+    const page = loadPage([sidebar], backing, { docHeight: 400 });
+    page.domReady();
+    page.fireLoad();
+    assert.strictEqual(page.env.winY, 400, 'уперлись в конец документа');
 });
 
 console.log('\nвсе проверки пройдены: ' + checks);
