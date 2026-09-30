@@ -2,6 +2,15 @@
 """Конфигурация приложения portal."""
 
 from django.apps import AppConfig
+from django.contrib.admin.apps import AdminConfig
+
+#: Класс сайта панели. ``django.contrib.admin.sites.site`` — ленивый
+#: объект: он читает ``default_site`` у конфигурации приложения admin
+#: при ПЕРВОМ обращении, а первое обращение происходит в
+#: ``AdminConfig.ready()`` -> ``autodiscover()``. Значит значение должно
+#: быть задано до ``django.setup()`` — то есть на уровне модуля, а не в
+#: ``ready()``: к тому моменту реестр уже наполнен моделями.
+AdminConfig.default_site = "portal.admin_site.TradeHubAdminSite"
 
 
 class PortalConfig(AppConfig):

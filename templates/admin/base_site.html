@@ -21,26 +21,195 @@ portal.middleware.LanguageMiddleware (?lang= / /lang/<код>/ -> сессия).
 {% block extrastyle %}
   {{ block.super }}
   <style>
-    /* Шапка: заголовок слева, ссылки пользователя и переключатель справа */
-    #header { justify-content: flex-start; }
-    #branding { flex: 1; align-items: center; }
-    #user-tools { margin-left: 20px; }
-    #nav-global { margin-left: 14px; }
+    /* ================================================================
+       ШАПКА ПАНЕЛИ
+       ---------------------------------------------------------------
+       ПОРЯДОК ПОДКЛЮЧЕНИЯ (admin/base.html): base.css (стр. 6),
+       dark_mode.css (10), этот <style> (15), rtl.css (16) и
+       responsive.css (21) — ПОСЛЕ нас. Отсюда:
+         * против base.css и dark_mode.css хватает равной специфичности
+           (решает порядок подключения);
+         * против rtl.css и responsive.css нужна ID в селекторе.
+       ================================================================ */
 
-    .admin-lang { display: flex; align-items: center; gap: 2px;
-                  margin-left: auto; }
+    /* ---------------------------------------------------------------
+       Переключатель языка.
+
+       Штатное правило Django (base.css:925)
+           #header a:link, #header a:visited { color: var(--header-link-color) }
+       имеет специфичность (1,1,1): один ID + псевдокласс + тип.
+
+       Прежнее правило проекта .admin-lang a.is-active — (0,2,1):
+       ни одного ID, поэтому ПРОИГРЫВАЛО. Цвет задавал Django, и
+       активная кнопка получала color == background, то есть белым
+       по белому. Префикс #header поднимает правило до (1,2,1) —
+       гарантированная победа, а не ничья по порядку.
+
+       Цвета заданы переменными Django, а не литералами: --primary-fg
+       меняется при смене темы (#fff -> #f7f7f7), поэтому кнопка
+       остаётся читаемой и в светлой, и в тёмной.
+       --------------------------------------------------------------- */
+    #header .admin-lang a.is-active {
+      background: var(--header-link-color, #fff);
+      color: var(--header-bg, #417690);
+      font-weight: 600;
+      /* Страховка: даже если переменные Django изменятся, активный
+         язык останется виден как объект, а не пустой прямоугольник. */
+      box-shadow: inset 0 0 0 1px var(--header-bg, #417690);
+    }
+
+    #header .admin-lang a.is-active:hover,
+    #header .admin-lang a.is-active:focus-visible {
+      background: var(--accent, #f5dd5d);
+      color: var(--header-bg, #417690);
+      box-shadow: none;
+      text-decoration: none;
+    }
+
+    #header .admin-lang a:not(.is-active) {
+      color: var(--header-link-color);
+      background: transparent;
+      text-decoration: none;
+    }
+
+    #header .admin-lang a:not(.is-active):hover,
+    #header .admin-lang a:not(.is-active):focus-visible {
+      background: rgba(255, 255, 255, .18);
+    }
+
+    /* Видимый фокус с клавиатуры: штатное #header a:focus его теряет. */
+    #header .admin-lang a:focus-visible {
+      outline: 2px solid var(--header-color, #ffc);
+      outline-offset: 2px;
+    }
+
+    /* ---------------------------------------------------------------
+       Воздух в шапке.
+
+       Штатно: padding: 10px 40px (base.css:915). Заголовок бренда —
+       1.5rem / weight 300, а блок пользователя набран 11px КАПСОМ с
+       подчёркиванием каждой ссылки (base.css:979-985). В китайском
+       заголовке глифы квадратные и вдвое шире латинских, поэтому
+       «TradeHub 管理后台» занимал почти треть экрана, а справа всё
+       слипалось. Ниже — точечные переопределения.
+       --------------------------------------------------------------- */
+    #header {
+      justify-content: flex-start;
+      gap: 20px;
+      padding: 14px 32px;
+    }
+
+    #branding {
+      flex: 1 1 auto;
+      /* Без min-inline-size: 0 флекс-поток не даст сжать текст и
+         троеточие не сработает. */
+      min-inline-size: 0;
+      align-items: center;
+      gap: 16px;
+    }
+
+    #branding h1 {
+      font-size: 1.05rem;   /* было 1.5rem = 24px */
+      font-weight: 400;     /* было 300: тонкий CJK мылится */
+      margin: 0;            /* снимает margin-inline-end: 20px */
+      min-inline-size: 0;
+      /* Заголовок не обрезаем: site_header задаётся проектом и в
+         китайском варианте длиннее («TradeHub 管理后台»). Если он не
+         поместится, лучше перенос строки, чем многоточие вместо
+         названия продукта. */
+      white-space: normal;
+      overflow-wrap: break-word;
+    }
+
+    #user-tools {
+      margin: 0;            /* снимает margin-left: 20px (base.css:975) */
+      font-size: .75rem;    /* было .6875rem = 11px */
+      line-height: 1.9;
+      letter-spacing: .3px;
+      text-transform: none; /* было uppercase — источник слипшихся букв */
+      text-align: end;      /* было right; end разворачивается в RTL */
+      flex: none;
+    }
+
+    #user-tools a {
+      border-block-end: 0;  /* base.css:985 подчёркивает каждую ссылку */
+      text-decoration: none;
+    }
+
+    #user-tools a:hover,
+    #user-tools a:focus-visible {
+      border-block-end: 1px solid rgba(255, 255, 255, .45);
+      text-decoration: none;
+    }
+
+    /* Кнопка выхода. base.css:980 задаёт ей font-size отдельным
+       селектором (1,0,1), поэтому одного #user-tools (1,0,0) мало —
+       нужен (1,1,1). То же с подчёркиванием из base.css:985. */
+    #user-tools #logout-form button {
+      font-size: inherit;
+      letter-spacing: inherit;
+      text-transform: inherit;
+      border-block-end: 0;
+      padding: 0;
+    }
+
+    #user-tools #logout-form button:hover,
+    #user-tools #logout-form button:focus-visible {
+      border-block-end: 1px solid rgba(255, 255, 255, .45);
+    }
+
+    /* Переключатель языка и ВИДИМЫЙ РАЗДЕЛИТЕЛЬ «пользователь | язык».
+       Прежний margin-left: auto был хостом: #branding { flex: 1 } уже
+       поглощает свободное место (flex-grow отрабатывает раньше
+       auto-margin), поэтому зазор был ровно 0. Теперь — отступ и
+       тонкая линия. Логические свойства сами развернутся в RTL. */
+    .admin-lang {
+      display: flex;
+      align-items: center;
+      gap: 4px;             /* было 2px — кнопки почти слипались */
+      margin: 0;
+      padding-inline-start: 20px;
+      border-inline-start: 1px solid rgba(255, 255, 255, .25);
+      font-size: .75rem;
+      line-height: 1.9;
+      text-transform: none;
+      letter-spacing: .3px;
+      flex: none;
+    }
+
     .admin-lang a {
-      padding: 3px 9px; border-radius: 4px; font-size: 12px;
-      line-height: 1.4; white-space: nowrap; text-decoration: none;
-      color: var(--header-link-color, #ffc);
+      padding: 4px 10px;    /* было 3px 9px — не читалось как кнопки */
+      border-radius: 4px;
+      font-size: .8125rem;
+      line-height: 1.4;
+      white-space: nowrap;
     }
-    .admin-lang a:hover { background: rgba(255, 255, 255, .18);
-                          text-decoration: none; }
-    .admin-lang a.is-active {
-      background: var(--header-link-color, #ffc);
-      color: var(--header-bg, #417690); font-weight: 600;
+
+    /* Страница входа: там переключатель лежит внутри #branding, а не
+       в nav-global, то есть становится соседом h1. login.css
+       подключается ПОСЛЕ нас, поэтому нужен ID в селекторе. */
+    html .login #header { justify-content: center; }
+    .login .admin-lang { margin-inline-start: auto; }
+
+    /* ---------------------------------------------------------------
+       Адаптив. Ниже 1024px responsive.css переводит #header в
+       flex-direction: column и задаёт свои padding и выравнивание —
+       спорить с ними бессмысленно, они подключены позже. Правил для
+       .admin-lang там нет вовсе, поэтому чинить надо здесь: в колонке
+       вертикальный разделитель неуместен, переносим его наверх.
+       --------------------------------------------------------------- */
+    @media (max-width: 1024px) {
+      #header { gap: 12px; }
+      #branding h1 { max-inline-size: 100%; }
+
+      .admin-lang {
+        margin: 8px 0 0;
+        padding: 8px 0 0;
+        border-inline-start: 0;
+        border-block-start: 1px solid rgba(255, 255, 255, .25);
+        align-self: flex-start;
+      }
     }
-    .admin-lang a.is-active:hover { background: #fff; color: #417690; }
   </style>
 {% endblock %}
 

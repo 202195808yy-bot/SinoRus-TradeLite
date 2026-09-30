@@ -1,0 +1,125 @@
+{% extends "admin/base_site.html" %}
+{% comment %}
+Главная страница панели.
+
+Отличия от штатной ``admin/index.html``:
+* карточки показателей сверху — на что стоит посмотреть сейчас;
+* группы моделей по бизнес-логике в фиксированном порядке (не по алфавиту
+  переводов), заданные в ``portal/admin_site.py``;
+* счётчик записей у каждой модели;
+* группы с ``collapsed`` свёрнуты — по умолчанию это технические сущности;
+* боковая колонка «Последние действия» убрана: на чистой базе она всегда
+  пуста и занимает треть экрана.
+{% endcomment %}
+{% load i18n static %}
+
+{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static "admin/css/dashboard.css" %}"><link rel="stylesheet" href="{% static "admin/portal_index.css" %}">{% endblock %}
+
+{% comment %}
+``portal_index.css`` лежит в ``static/admin/``, а не рядом с шаблоном:
+подключение по имени ищет файл в каталогах статики приложений, а
+``templates/`` там не участвует.
+
+``colM``, а не штатный для главной ``colMS``: боковая колонка здесь
+убрана, а ``colMS`` резервирует под неё 290px пустого места справа.
+{% endcomment %}
+{% block coltype %}colM{% endblock %}
+
+{% block bodyclass %}{{ block.super }} dashboard{% endblock %}
+
+{% block nav-breadcrumbs %}{% endblock %}
+
+{% block nav-sidebar %}{% endblock %}
+
+{% block content %}
+<div id="content-main">
+
+  {% if kpi %}
+  <div class="portal-kpi">
+    <h2 class="portal-kpi-title">{{ kpi_title }}</h2>
+    <ul class="portal-kpi-list">
+      {% for card in kpi %}
+        <li class="portal-kpi-card portal-kpi-{{ card.tone|default:'plain' }}">
+          <a href="{{ card.url|default:'#' }}">
+            <span class="portal-kpi-value">{% if card.count is not None %}{{ card.count }}{% else %}&mdash;{% endif %}</span>
+            <span class="portal-kpi-label">{{ card.title }}</span>
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% for group in app_list %}
+    <div class="portal-group module{% if group.collapsed %} is-collapsed{% endif %}"
+         id="group-{{ group.key }}">
+      <h2 class="portal-group-title">
+        {% if group.collapsed %}
+          <button type="button" class="portal-group-toggle"
+                  aria-expanded="false" aria-controls="group-{{ group.key }}-models">
+            <span class="portal-group-caret" aria-hidden="true">&#9656;</span>
+            {{ group.name }}
+          </button>
+        {% else %}
+          {{ group.name }}
+        {% endif %}
+      </h2>
+      <div class="portal-group-models" id="group-{{ group.key }}-models"
+           {% if group.collapsed %}hidden{% endif %}>
+        <table>
+          {% for model in group.models %}
+            <tr class="model-{{ model.object_name|lower }}">
+              <th scope="row">
+                {% if model.admin_url %}
+                  <a href="{{ model.admin_url }}">{{ model.name }}</a>
+                {% else %}
+                  {{ model.name }}
+                {% endif %}
+                {% if model.count is not None %}
+                  <span class="portal-count">{{ model.count }}</span>
+                {% endif %}
+              </th>
+              {% if model.add_url %}
+                <td><a href="{{ model.add_url }}" class="addlink">{% translate 'Add' %}</a></td>
+              {% else %}
+                <td></td>
+              {% endif %}
+              {% if model.admin_url %}
+                <td>
+                  {% if model.view_only %}
+                    <a href="{{ model.admin_url }}" class="viewlink">{% translate 'View' %}</a>
+                  {% else %}
+                    <a href="{{ model.admin_url }}" class="changelink">{% translate 'Change' %}</a>
+                  {% endif %}
+                </td>
+              {% else %}
+                <td></td>
+              {% endif %}
+            </tr>
+          {% endfor %}
+        </table>
+      </div>
+    </div>
+  {% empty %}
+    <p>{% translate 'You don’t have permission to view or edit anything.' %}</p>
+  {% endfor %}
+
+</div>
+
+<script>
+  // Group collapsing. State is not persisted: a page reload returns the
+  // panel to the layout rendered by the server.
+  document.querySelectorAll(".portal-group-toggle").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var box = document.getElementById(
+        btn.getAttribute("aria-controls"));
+      var open = btn.getAttribute("aria-expanded") === "true";
+      btn.setAttribute("aria-expanded", open ? "false" : "true");
+      box.hidden = open;
+      btn.closest(".portal-group").classList.toggle("is-collapsed", open);
+    });
+  });
+</script>
+{% endblock %}
+
+{% block sidebar %}{% endblock %}
