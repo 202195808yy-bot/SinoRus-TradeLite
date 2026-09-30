@@ -176,3 +176,61 @@ class DetailPageParamTest(TestCase):
             resp = self.client.get(url_of(name, order.pk))
             self.assertEqual(resp.status_code, 200, name)
             self.assertIn(order.number, resp.content.decode())
+
+
+class SidebarScrollTest(TestCase):
+    """Прокрутка боковой панели сохраняется между переходами.
+
+    Панель TradeHub и панель разделов админки прокручиваются отдельно от
+    страницы (``overflow: auto``), а браузер восстанавливает прокрутку
+    только у окна. Поэтому после перехода панель откатывалась к первому
+    пункту, и нужный модуль приходилось искать заново.
+
+    Сама логика живёт в ``static/js/keep-scroll.js`` и проверяется
+    отдельным стендом на Node (``tools/keep_scroll_harness.js``, запуск
+    ``node tools/keep_scroll_harness.js static/js/keep-scroll.js``).
+    Здесь проверяется подключение: файл отдаётся статикой, скрипт
+    подключён на обеих панелях и разметка даёт ему за что зацепиться.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.contrib.auth import get_user_model
+        call_command("seed_demo", verbosity=0)
+        cls.root = get_user_model().objects.create_superuser(
+            username="scroll-root", email="scroll@example.com",
+            password="scroll-test-pass")
+
+    def setUp(self):
+        self.client = Client(HTTP_HOST="localhost")
+
+    def test_script_file_is_served(self):
+        """Иначе в браузере был бы 404 и панель просто не заработала бы."""
+        from django.contrib.staticfiles import finders
+        self.assertIsNotNone(finders.find("js/keep-scroll.js"))
+
+    def test_portal_sidebar_is_marked_and_script_loaded(self):
+        html = self.client.get("/orders/").content.decode()
+        self.assertIn('data-keep-scroll="sidebar"', html)
+        self.assertIn("js/keep-scroll.js", html)
+
+    def test_script_is_deferred(self):
+        """defer — чтобы разметка была готова к моменту выполнения."""
+        html = self.client.get("/orders/").content.decode()
+        self.assertRegex(
+            html, r"<script[^>]+js/keep-scroll\.js[^>]*\bdefer\b")
+
+    def test_admin_nav_sidebar_gets_the_script(self):
+        """У панели админки нет data-атрибута — скрипт ищет её по id."""
+        self.client.force_login(self.root)
+        html = self.client.get("/admin/portal/order/").content.decode()
+        self.assertIn('id="nav-sidebar"', html)
+        self.assertIn("js/keep-scroll.js", html)
+
+    def test_admin_and_portal_use_different_panels(self):
+        """Панели не пересекаются: у TradeHub есть свой маркер."""
+        self.client.force_login(self.root)
+        admin = self.client.get("/admin/portal/order/").content.decode()
+        portal = self.client.get("/orders/").content.decode()
+        self.assertNotIn('data-keep-scroll="sidebar"', admin)
+        self.assertIn('data-keep-scroll="sidebar"', portal)

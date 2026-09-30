@@ -37,7 +37,7 @@
 
 <div class="layout">
 
-  <aside class="sidebar">
+  <aside class="sidebar" data-keep-scroll="sidebar">
     <p class="sidebar-title">{{ ui.sidebar_title }}</p>
     {% for module in nav_modules %}
       <div class="nav-group">
@@ -74,6 +74,10 @@
   <p>{{ ui.footer_line1 }}</p>
   <p class="muted">{{ ui.footer_line2 }}</p>
 </footer>
+
+{# Панель навигации прокручивается отдельно от страницы; без этого    #}
+{# скрипта переход сбрасывал бы её к первому пункту. См. static/js/. #}
+<script src="{% static 'js/keep-scroll.js' %}" defer></script>
 
 </body>
 </html>

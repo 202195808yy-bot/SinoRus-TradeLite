@@ -1,5 +1,5 @@
 {% extends "admin/base.html" %}
-{% load i18n %}
+{% load i18n static %}
 
 {% comment %}
 Переопределение заголовка панели: добавлен переключатель языка.
@@ -211,6 +211,17 @@ portal.middleware.LanguageMiddleware (?lang= / /lang/<код>/ -> сессия).
       }
     }
   </style>
+{% endblock %}
+
+{% block extrahead %}
+  {{ block.super }}
+  {% comment %}
+  Панель разделов (#nav-sidebar) прокручивается отдельно от страницы.
+  Браузер сохраняет прокрутку только у окна, поэтому без этого скрипта
+  любой переход сбрасывал панель к первому пункту. Элемент создаётся
+  Django и своего data-атрибута не имеет — скрипт находит его по id.
+  {% endcomment %}
+  <script src="{% static 'js/keep-scroll.js' %}" defer></script>
 {% endblock %}
 
 {% block branding %}
