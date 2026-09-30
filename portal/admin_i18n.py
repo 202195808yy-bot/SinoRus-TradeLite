@@ -34,10 +34,25 @@ Django строит подписи панели из метаданных мод
 
 Порядок поиска перевода — ``tr_admin()``: сначала ``ADMIN_LABELS``, затем
 ``LABELS`` без учёта регистра (см. ``portal/admin_labels.py``).
+
+Две подписи панель хранит не в метаданных, а **в базе**, и они тоже
+показываются пользователю:
+
+* ``Permission.name`` — при ``migrate`` в него записывается
+  «Can add <verbose_name_raw>», то есть русское название модели навсегда
+  (``tr_permission()`` собирает подпись заново из ``codename``);
+* ``LogEntry.change_message`` — JSON с названиями изменённых полей,
+  замороженными в момент правки (``tr_change_message()`` подменяет их
+  перед тем, как Django собирает фразу).
+
+Обе обёртки включаются тем же ``localize()``.
 """
+
+import json
 
 from django.apps import apps
 from django.utils.functional import Promise
+from django.utils.translation import gettext
 
 from .admin_labels import ADMIN_LABELS
 from .i18n import DEFAULT_LANG, LABELS, active_lang, tr_value
@@ -235,6 +250,115 @@ def _localize_str(model):
     return True
 
 
+#: Глаголы стандартных разрешений: ``codename`` -> msgid из поставки Django.
+#: Именно msgid, а не готовый перевод: ``gettext()`` подставит ровно то
+#: слово, которым панель подписывает свои ссылки (Добавить / 增加 / Add),
+#: поэтому перевод не приходится выдумывать и он не разойдётся с панелью.
+PERMISSION_VERBS = {"add": "Add", "change": "Change",
+                    "delete": "Delete", "view": "View"}
+
+
+def tr_permission(perm):
+    """Подпись разрешения на текущем языке.
+
+    ``Permission.name`` — обычное поле базы: при ``migrate`` в него
+    записывается «Can add <verbose_name_raw>» и хранится по-русски
+    независимо от языка интерфейса. Django берёт непереведённое имя
+    намеренно, чтобы данные не зависели от локали, — но в панели такая
+    подпись видна пользователю, поэтому на странице пользователя и группы
+    китайская шапка соседствовала со списком «Can add вложение».
+
+    Подпись собирается заново из ``codename``: глагол переводится штатным
+    каталогом Django, название модели берётся из её ``verbose_name`` (он
+    уже обёрнут и переводится). Нестандартные разрешения
+    (``Meta.permissions``) и несуществующие модели возвращаются как в
+    базе — их ``codename`` не разбирается на действие и модель.
+    """
+    name = perm.name
+    action, sep, rest = (perm.codename or "").partition("_")
+    verb = PERMISSION_VERBS.get(action)
+    if not sep or verb is None:
+        return name
+    model = perm.content_type.model_class()
+    if model is None or rest != model._meta.model_name:
+        return name
+    return "%s %s" % (gettext(verb), model._meta.verbose_name)
+
+
+def _localize_permission():
+    """Переводит подпись разрешения (``__str__`` модели ``Permission``)."""
+    from django.contrib.auth.models import Permission
+
+    original = Permission.__str__
+    if getattr(original, "_portal_lazy", False):
+        return False
+
+    def __str__(self):
+        return "%s | %s" % (self.content_type, tr_permission(self))
+
+    __str__._portal_lazy = True
+    Permission.__str__ = __str__
+    return True
+
+
+def tr_change_message(raw):
+    """Переводит названия полей и моделей внутри сообщения журнала.
+
+    ``LogEntry.change_message`` хранит JSON с названиями изменённых полей.
+    Они записаны в момент правки и потому по-русски; Django переводит
+    сообщение целиком (``gettext``), но русских названий полей в каталоге
+    нет, поэтому в китайской панели получалось «已修改статус 和 дата
+    подписания». Названия подменяются **до** форматирования — саму фразу
+    Django собирает сам, уже на нужном языке.
+
+    Строки, которые не являются JSON (журнал умеет хранить и простое
+    сообщение), возвращаются как есть.
+    """
+    if not raw or not raw.startswith("["):
+        return raw
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        return raw
+    lang = active_lang()
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        for block in item.values():
+            if not isinstance(block, dict):
+                continue
+            if block.get("name"):
+                block["name"] = tr_admin(block["name"], lang)
+            if isinstance(block.get("fields"), list):
+                block["fields"] = [tr_admin(f, lang) for f in block["fields"]]
+    return json.dumps(data)
+
+
+def _localize_log_entry():
+    """Переводит сообщения журнала действий (``get_change_message``)."""
+    from django.contrib.admin.models import LogEntry
+
+    original = LogEntry.get_change_message
+    if getattr(original, "_portal_lazy", False):
+        return False
+
+    def get_change_message(self):
+        if active_lang() == DEFAULT_LANG:
+            return original(self)
+        # Метод читает self.change_message, поэтому подменяем его на время
+        # вызова и возвращаем исходное значение: сам объект не меняется.
+        raw = self.change_message
+        self.change_message = tr_change_message(raw)
+        try:
+            return original(self)
+        finally:
+            self.change_message = raw
+
+    get_change_message._portal_lazy = True
+    LogEntry.get_change_message = get_change_message
+    return True
+
+
 def localize():
     """Оборачивает подписи приложения, моделей, полей и перечислений.
 
@@ -256,4 +380,6 @@ def localize():
             count += _wrap_choices(field)
         if model.__name__ in REFERENCE_MODELS:
             count += _localize_str(model)
+    count += _localize_permission()
+    count += _localize_log_entry()
     return count

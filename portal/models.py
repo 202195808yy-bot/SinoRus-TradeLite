@@ -33,6 +33,8 @@ from django.db import models
 from django.db.models import Q
 from django.utils import timezone
 
+from .i18n import label
+
 
 # ======================================================================
 # Вспомогательные классы и словари значений
@@ -270,8 +272,8 @@ class Tariff(models.Model):
         ordering = ["hs_code"]
 
     def __str__(self):
-        return (f"{self.hs_code}: пошлина {self.duty_rate}%,"
-                f" НДС {self.vat_rate}%")
+        return (f"{self.hs_code}: {label('пошлина')} {self.duty_rate}%,"
+                f" {label('НДС')} {self.vat_rate}%")
 
 
 # ======================================================================
@@ -305,7 +307,12 @@ class Profile(models.Model):
         verbose_name_plural = "профили"
 
     def __str__(self):
-        return f"Профиль: {self.user.get_username()}"
+        # Подпись — само название модели: в документах эта сущность
+        # называется «Пользователь» («用户»), и панель подписывает ею же
+        # раздел и хлебные крошки. Отдельное слово для «Профиль» разошлось
+        # бы с ними на одной и той же странице.
+        return (f"{self._meta.verbose_name.capitalize()}: "
+                f"{self.user.get_username()}")
 
 
 class Enterprise(TimeStampedModel):
@@ -1321,7 +1328,7 @@ class Dialog(models.Model):
         ]
 
     def __str__(self):
-        return f"Диалог: {self.subject_label or self.subject_id}"
+        return f"{label('Диалог')}: {self.subject_label or self.subject_id}"
 
 
 class Message(models.Model):
@@ -1379,7 +1386,7 @@ class Translation(models.Model):
         ]
 
     def __str__(self):
-        return f"Перевод #{self.message_id} → {self.target_language}"
+        return f"{label('Перевод')} #{self.message_id} → {self.target_language}"
 
 
 class Attachment(models.Model):
@@ -1817,7 +1824,7 @@ class AuditLog(models.Model):
         indexes = [models.Index(fields=["target_kind", "created_at"])]
 
     def __str__(self):
-        who = self.actor.get_username() if self.actor else "система"
+        who = self.actor.get_username() if self.actor else label("система")
         return f"{who}: {self.action} {self.target_kind}#{self.target_id}"
 
 

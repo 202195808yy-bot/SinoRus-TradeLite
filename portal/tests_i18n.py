@@ -21,12 +21,15 @@ import re
 from urllib.parse import quote
 
 from django.apps import apps
+from django.contrib.admin.models import LogEntry
+from django.contrib.auth.models import Permission
+from django.contrib.contenttypes.models import ContentType
 from django.core.management import CommandError, call_command
 from django.test import Client, TestCase
 from django.utils import translation
 
 from . import models as m
-from .admin_i18n import localize
+from .admin_i18n import localize, tr_permission
 from .admin_labels import OVERRIDES
 from .datasets import provider_for
 from .i18n import (DEFAULT_LANG, LABELS, LANGS, LANG_LABELS, LANG_SHORT, UI,
@@ -53,6 +56,21 @@ COMMENTS = re.compile(r"<!--.*?-->|/\*.*?\*/", re.S)
 #: (в переключателе ``title="Русский"`` — так же, как на страницах портала).
 CYR_ALLOWED_IN_ADMIN = {name for name in LANG_LABELS.values() if CYR.search(name)}
 
+#: Поля, которые панель заполняет сама и хранит в базе. Их содержимое —
+#: подписи, а не свободные данные, поэтому в белый список они не попадают:
+#: именно на них ловится «замороженный» русский текст.
+GENERATED_LABEL_FIELDS = {
+    ("auth", "permission"): {"name"},
+    ("admin", "logentry"): {"change_message"},
+}
+
+#: Минимальная длина обрезка, который считается данными. Панель показывает
+#: длинный текст усечённым (``Truncator``), поэтому в разметку попадает
+#: часть слова — «сертифика» от «сертификата». Такие обрезки разрешены, но
+#: не короче этого порога: иначе под короткой подписью («Дата», «Роль»)
+#: маскировалось бы что угодно.
+MIN_TRUNCATED = 5
+
 
 def cyr_words(text):
     """Слова из кириллицы в строке."""
@@ -71,19 +89,32 @@ def demo_words():
     свободные примечания, ключи JSON-полей — переводить нельзя, поэтому в
     словаре их нет. Чтобы проверка «в китайской панели не осталось русских
     подписей» не спотыкалась о данные, их слова собираются из самой базы.
+
+    Обходятся **все** приложения, а не только ``portal``: на странице
+    пользователя видны его имя и фамилия (``auth``), в журнале — снимок
+    объекта (``admin``). Исключения — ``GENERATED_LABEL_FIELDS``.
     """
     from django.db import models as dj
 
     out = set()
-    for model in apps.get_app_config("portal").get_models():
-        names = [f.name for f in model._meta.fields
-                 if isinstance(f, (dj.CharField, dj.TextField, dj.JSONField))]
-        if not names:
-            continue
-        for row in model.objects.values_list(*names):
-            for value in row:
-                if value is not None:
-                    out |= cyr_words(str(value))
+    for config in apps.get_app_configs():
+        for model in config.get_models():
+            meta = model._meta
+            skip = GENERATED_LABEL_FIELDS.get((meta.app_label, meta.model_name),
+                                              set())
+            names = [f.name for f in meta.fields
+                     if isinstance(f, (dj.CharField, dj.TextField, dj.JSONField))
+                     and f.name not in skip]
+            if not names:
+                continue
+            for row in model.objects.values_list(*names):
+                for value in row:
+                    if value is None:
+                        continue
+                    for word in cyr_words(str(value)):
+                        out.add(word)
+                        for cut in range(MIN_TRUNCATED, len(word)):
+                            out.add(word[:cut])
     return out
 
 
@@ -446,15 +477,34 @@ class AdminLabelTest(TestCase):
     ``LazyRu`` — для подписей, ``LazyChoice`` — для подписей ``choices``;
     последние остаются настоящими строками, потому что ``portal/datasets.py``
     их склеивает, а миграции записывают.
+
+    Ещё две подписи панель хранит **в базе**, и они тоже заморожены
+    по-русски: ``Permission.name`` (собирается при ``migrate`` как «Can add
+    <verbose_name_raw>») и ``LogEntry.change_message`` (названия изменённых
+    полей записываются в момент правки). Обе переводятся на выводе.
     """
 
     @classmethod
     def setUpTestData(cls):
+        from django.contrib.admin.models import CHANGE, LogEntry
         from django.contrib.auth import get_user_model
+        from django.contrib.contenttypes.models import ContentType
+
         call_command("seed_demo", verbosity=0)
         cls.root = get_user_model().objects.create_superuser(
             username="root-labels", email="root@example.com",
             password="admin-test-pass")
+
+        # Запись журнала с русскими названиями полей — такую создаёт сама
+        # панель при правке объекта. Нужна, чтобы страница истории тоже
+        # проверялась на «замороженные» подписи.
+        order = m.Order.objects.first()
+        cls.log_entry = LogEntry.objects.log_action(
+            user_id=cls.root.pk,
+            content_type_id=ContentType.objects.get_for_model(order).pk,
+            object_id=order.pk, object_repr=str(order), action_flag=CHANGE,
+            change_message='[{"changed": {"fields": ["\u0441\u0442\u0430\u0442\u0443\u0441",'
+                           ' "\u0434\u0430\u0442\u0430 \u043f\u043e\u0434\u043f\u0438\u0441\u0430\u043d\u0438\u044f"]}}]')
 
     def setUp(self):
         self.client = Client(HTTP_HOST="localhost")
@@ -559,12 +609,24 @@ class AdminLabelTest(TestCase):
                 self.assertEqual(offenders, set(), f"{code} {url}: {offenders}")
 
     def test_admin_pages_have_no_russian_interface(self):
-        """На страницах с данными кириллица остаётся только в данных."""
+        """На страницах с данными кириллица остаётся только в данных.
+
+        Список страниц намеренно широкий: именно пропуск страницы
+        пользователя скрыл однажды подписи разрешений («Can add вложение»),
+        а пропуск истории — названия полей в журнале.
+        """
         allowed = demo_words() | CYR_ALLOWED_IN_ADMIN
         pages = ("/admin/portal/order/", "/admin/portal/order/1/change/",
+                 "/admin/portal/order/1/history/",
                  "/admin/portal/good/", "/admin/portal/good/1/change/",
                  "/admin/portal/enterprise/", "/admin/portal/document/",
-                 "/admin/portal/statement/1/change/")
+                 "/admin/portal/statement/1/change/",
+                 "/admin/portal/profile/", "/admin/portal/profile/1/change/",
+                 "/admin/portal/tariff/", "/admin/portal/dialog/",
+                 "/admin/portal/translation/", "/admin/portal/message/",
+                 "/admin/portal/good/add/", "/admin/portal/tariff/add/",
+                 "/admin/auth/user/", "/admin/auth/user/1/change/",
+                 "/admin/auth/group/", "/admin/auth/group/add/")
         for code in ("zh", "en"):
             self.client.get("/lang/%s/?next=/admin/" % code)
             for url in pages:
@@ -573,6 +635,98 @@ class AdminLabelTest(TestCase):
                 offenders = (cyr_words(visible_text(response.content.decode("utf-8")))
                              - allowed)
                 self.assertEqual(offenders, set(), f"{code} {url}: {offenders}")
+
+    # ------------------------------------- подписи, замороженные в базе
+    def test_permission_labels_follow_language(self):
+        """Подписи разрешений собираются заново из ``codename``.
+
+        В базе лежит «Can add вложение»: Django записывает туда
+        непереведённое название модели, чтобы данные не зависели от локали.
+        В панели такая подпись видна, поэтому она переводится на выводе.
+        """
+        perm = Permission.objects.get(codename="add_attachment")
+        self.assertEqual(perm.name, "Can add вложение")      # как в базе
+        self.assertEqual(str(perm), "portal | вложение | Добавить вложение")
+        with translation.override("zh-hans"):
+            self.assertEqual(str(perm), "portal | 附件 | 增加 附件")
+        with translation.override("en"):
+            self.assertEqual(str(perm), "portal | Attachment | Add Attachment")
+
+    def test_permission_verbs_match_the_panel(self):
+        """Глагол разрешения совпадает с надписью панели на том же языке."""
+        for code, verb in (("zh-hans", "增加"), ("ru", "Добавить")):
+            with translation.override(code):
+                label = str(Permission.objects.get(codename="add_user"))
+                self.assertEqual(label.split(" | ")[-1].split(" ")[0], verb,
+                                 f"{code}: глагол не совпал с надписью панели")
+
+    def test_custom_permission_keeps_its_name(self):
+        """Нестандартное разрешение не разбирается и остаётся как в базе."""
+        content_type = ContentType.objects.get_for_model(m.Order)
+        perm = Permission(name="Can approve order", codename="can_approve_order",
+                          content_type=content_type)
+        with translation.override("zh-hans"):
+            self.assertEqual(tr_permission(perm), "Can approve order")
+
+    def test_log_message_follows_language(self):
+        """Названия полей в журнале переводятся, сама запись не меняется."""
+        entry = LogEntry.objects.get(pk=self.log_entry.pk)
+        raw = entry.change_message
+        self.assertIn("статус", raw)
+        self.assertEqual(entry.get_change_message(),
+                         "Изменено статус и дата подписания.")
+        with translation.override("zh-hans"):
+            message = entry.get_change_message()
+            self.assertEqual(message, "已修改状态 和 签署日期。")
+            self.assertEqual(cyr_words(message), set())
+        with translation.override("en"):
+            self.assertEqual(entry.get_change_message(),
+                             "Changed Status and Signed date.")
+        # вывод не должен записывать перевод в базу
+        self.assertEqual(LogEntry.objects.get(pk=self.log_entry.pk).change_message,
+                         raw)
+
+    def test_log_message_keeps_plain_text(self):
+        """Журнал умеет хранить и простое сообщение — его не трогаем."""
+        entry = LogEntry(object_repr="x", change_message="Изменено вручную.")
+        with translation.override("zh-hans"):
+            self.assertEqual(entry.get_change_message(), "Изменено вручную.")
+
+    # ----------------------------------- подписи внутри ``__str__`` моделей
+    def test_model_str_labels_follow_language(self):
+        """Подписи внутри ``__str__`` берутся из словаря.
+
+        ``__str__`` панель вызывает вне ``translate_blocks`` — в списках,
+        хлебных крошках, заголовках и выпадающих списках, — поэтому жёстко
+        записанное русское слово («Профиль: ivanov») доходило до
+        пользователя в любом языке.
+        """
+        objects = [m.Profile.objects.first(), m.Tariff.objects.first(),
+                   m.Dialog.objects.first(), m.Translation.objects.first()]
+        for code in ("zh-hans", "en"):
+            with translation.override(code):
+                for obj in objects:
+                    text = str(obj)
+                    self.assertEqual(cyr_words(text), set(),
+                                     f"{code} {type(obj).__name__}: {text}")
+        with translation.override("zh-hans"):
+            profile = str(m.Profile.objects.first())
+            self.assertTrue(profile.startswith("用户"), profile)
+            self.assertIn("增值税", str(m.Tariff.objects.first()))
+        with translation.override("en"):
+            self.assertTrue(str(m.Profile.objects.first()).startswith("Profile"))
+            self.assertIn("VAT", str(m.Tariff.objects.first()))
+
+    def test_model_str_label_agrees_with_model_name(self):
+        """Подпись в ``__str__`` совпадает с названием модели на странице."""
+        with translation.override("zh-hans"):
+            prefix = str(m.Profile.objects.first()).split(":")[0]
+            self.assertEqual(prefix, str(m.Profile._meta.verbose_name).capitalize())
+
+    def test_model_str_labels_keep_default_language(self):
+        """Русский — исходный язык подписей: он не меняется."""
+        self.assertEqual(str(m.Profile.objects.first()), "Профиль: ivanov")
+        self.assertIn("пошлина", str(m.Tariff.objects.first()))
 
     def test_admin_headers_are_translated(self):
         self.client.get("/lang/zh/?next=/admin/")
