@@ -74,6 +74,25 @@ python manage.py runserver
 The application is available at <http://127.0.0.1:8000/>,
 the admin panel at <http://127.0.0.1:8000/admin/>.
 
+### Environment requirements
+
+The Django 4.2 branch officially supports Python 3.8–3.12. The project
+nevertheless runs on newer versions — up to 3.14: the incompatibility in
+template context copying is worked around in place, without touching
+`site-packages` and without changing `requirements.txt` (see
+`portal/compat.py`).
+
+| Python | Django | State |
+|---|---|---|
+| 3.8–3.12 | 4.2.30 | stock behaviour, the shim stays off |
+| 3.13 | 4.2.30 | stock behaviour, the shim stays off |
+| 3.14 | 4.2.30 | works through `portal/compat.py` |
+
+The shim is enabled in `PortalConfig.ready()`, and only when the native
+implementation is genuinely broken: the check is by fact, not by version
+number — an empty context is copied. If copying succeeds, nothing is
+touched and Django's behaviour stays as shipped.
+
 ## Project structure
 
 ```
@@ -124,6 +143,8 @@ course_project/
 │   │                          reference values (501 entries, ru→zh/en)
 │   ├── admin_labels.py        panel label dictionary (154 entries, ru→zh/en)
 │   ├── admin_i18n.py          lazy ORM label translation for /admin/
+│   ├── compat.py              Python 3.14 shim: template context copying
+│   │                          (Django 4.2 + Python 3.14)
 │   ├── middleware.py          language selection: ?lang= / /lang/<code>/ → session
 │   ├── langcheck.py           self-check: labels, choices, reference values,
 │   │                          panel labels
@@ -133,6 +154,7 @@ course_project/
 │   ├── tests.py               23 model tests: numbering, properties, constraints
 │   ├── tests_views.py         17 page and data tests (stage 4)
 │   ├── tests_i18n.py          80 tests: switching, translation, purity
+│   ├── tests_compat.py        9 tests: context copying, Python 3.14 shim
 │   ├── templatetags/          template filters (tr, fmt)
 │   ├── management/commands/seed_demo.py   idempotent demo data loader
 │   └── migrations/
@@ -202,7 +224,7 @@ Shared mechanisms: the `TimeStampedModel` abstract model with time stamps,
 ```bash
 python manage.py migrate           # create 53 tables
 python manage.py seed_demo         # demo deal chain
-python manage.py test portal       # 120 tests: models, pages, languages
+python manage.py test portal       # 129 tests: models, pages, languages
 ```
 
 The `seed_demo` command is idempotent (a second run creates no duplicates)
@@ -263,7 +285,7 @@ from the code.
 
 ```bash
 python tools/check_data.py     # 37 pages with data, 6 prototypes
-python manage.py test portal   # 120 tests: models, pages, languages
+python manage.py test portal   # 129 tests: models, pages, languages
 ```
 
 ## Interface language
@@ -455,8 +477,56 @@ python tools/check_data.py      # pages wired to models
 python tools/check_lang.py      # interface translation completeness
 python tools/smoke_test.py      # smoke test: request every page
 python tools/gen_docs.py        # refresh docs/pages.{ru,zh,en}.md
-python manage.py test portal    # 120 tests: models, pages, languages
+python manage.py test portal    # 129 tests: models, pages, languages
 ```
+
+## Python 3.14 compatibility
+
+`requirements.txt` pins Django 4.2.30 — the branch that supports Python
+3.8–3.12 (3.13 arrived in Django 5.1, 3.14 in 5.2). The project is
+nevertheless run on newer versions too: the `.venv` virtual environment is
+built on Python 3.14.
+
+That is where template context copying breaks. Django 4.2 does this
+(`django/template/context.py`):
+
+```python
+def __copy__(self):
+    duplicate = copy(super())
+    duplicate.dicts = self.dicts[:]
+    return duplicate
+```
+
+The trick relies on attribute access on the `super()` object being
+delegated to the wrapped instance, so `copy(super())` returns a copy of the
+**context**, not of `super` itself. In Python 3.14 that behaviour changed,
+and the second line fails:
+
+```
+AttributeError: 'super' object has no attribute 'dicts'
+and no __dict__ for setting new attributes
+```
+
+Externally it looks misleading: the panel's home page opens (it does not
+copy the context), while **every navigation** — to a model list, to a detail
+page, to a user — responds with error 500. In the test suite 40 of 120 tests
+failed — all of those that render a template with context copying.
+
+The workaround is `portal/compat.py`:
+
+1. **checked by fact, not by version number** — an empty context is copied;
+   if the copy succeeds, nothing is touched;
+2. **substitution only when broken** — `BaseContext.__copy__` is replaced
+   with an implementation without `super()`, repeating the original
+   semantics (new object, same `__dict__`, a separate `dicts` list);
+3. **idempotent** — the `_portal_compat` marker prevents a second
+   substitution;
+4. enabled in `PortalConfig.ready()`, next to the panel label translation.
+
+`site-packages` is not modified, no dependency is added, and
+`requirements.txt` still pins `Django==4.2.30`. On Python 3.12 and 3.13 the
+shim does not engage at all — Django's behaviour stays as shipped. It is
+covered by `portal/tests_compat.py`.
 
 ## Domain boundaries
 

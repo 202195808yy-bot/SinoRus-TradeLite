@@ -26,7 +26,14 @@ class PortalConfig(AppConfig):
         (``portal/admin_i18n.py``), поэтому панель переключается вместе с
         остальным интерфейсом. Импорт внутри метода — на момент загрузки
         ``apps.py`` реестр приложений ещё не готов.
+
+        Здесь же включается обход для Python 3.14: Django 4.2 копирует
+        контекст шаблона через ``copy(super())``, а там это больше не
+        работает — падают все страницы панели, кроме главной
+        (``portal/compat.py``).
         """
         from .admin_i18n import localize
+        from .compat import patch_template_context
 
+        patch_template_context()
         localize()
