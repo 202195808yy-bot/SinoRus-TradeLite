@@ -1,25 +1,25 @@
 # -*- coding: utf-8 -*-
-"""Проверка полноты словаря переводов (portal/labels.py, portal/i18n.py).
+"""检查翻译字典（portal/labels.py、portal/i18n.py）的完整性。
 
-Проверяются пять вещей:
+检查五项内容：
 
-* подписи блоков данных — прогон всех провайдеров portal/datasets.py;
-* перечисления из ``choices`` моделей (статусы, виды документов, единицы
-  измерения) — они попадают в ячейки значениями, а не подписями;
-* значения справочников — страны, валюты, типы документов, отрасли,
-  категории товаров;
-* подписи административной панели — названия приложения, моделей и полей
-  (``portal/admin_labels.py``);
-* подписи автосозданных моделей связи M2M — их нет в ``get_models()``,
-  а на странице подтверждения удаления они видны.
+* 数据块标签 — 遍历 portal/datasets.py 的全部提供器；
+* 模型的 ``choices`` 枚举（状态、单证类型、计量
+  单位）— 它们以值而非标签的形式进入单元格；
+* 字典的值 — 国家、货币、单证类型、行业、
+  商品类别；
+* 管理后台的标签 — 应用、模型与字段的名称
+  （``portal/admin_labels.py``）；
+* 自动创建的 M2M 关联模型的标签 — 它们不在 ``get_models()`` 中，
+  但在删除确认页面上可见。
 
-Плюс проверяются тексты оболочки интерфейса (portal/i18n.UI).
+另外还检查界面外壳文本（portal/i18n.UI）。
 
-Ошибкой считается непереведённая подпись блока, перечисления, значения
-справочника, подписи панели, подписи связи и пустой перевод в текстах
-оболочки.
+未翻译的数据块标签、枚举、字典值、后台标签、
+关联标签，以及外壳文本中的空翻译，
+均视为错误。
 
-Запуск:  python tools/check_lang.py
+运行：  python tools/check_lang.py
 """
 
 import os
@@ -48,7 +48,7 @@ def main():
 
     errors = []
 
-    # --- 1. Подписи блоков данных -------------------------------------
+    # --- 1. 数据块标签-------------------------------------
     found, missing, skipped = scan()
     print(f"\n  Подписей блоков собрано:      {len(found)}")
     print(f"  Переведено (portal/labels):   {len(found) - len(missing)}")
@@ -62,7 +62,7 @@ def main():
         for text in sorted(missing):
             print(f"      - {text!r}")
 
-    # --- 2. Перечисления из choices моделей ---------------------------
+    # --- 2. 模型的 choices 枚举---------------------------
     enums = enum_labels()
     bad_enums = untranslated_enums()
     print(f"\n  Перечислений в choices:       {len(enums) + len(ENUM_SKIP)}")
@@ -75,7 +75,7 @@ def main():
         for text in sorted(bad_enums):
             print(f"      - {text!r}")
 
-    # --- 3. Значения справочников -------------------------------------
+    # --- 3. 字典的值-------------------------------------
     refs = reference_values()
     bad_refs = untranslated_reference_values()
     print(f"\n  Значений справочников:        {len(refs)}")
@@ -86,7 +86,7 @@ def main():
         for text in sorted(bad_refs):
             print(f"      - {text!r}")
 
-    # --- 4. Подписи административной панели ---------------------------
+    # --- 4. 管理后台的标签---------------------------
     admin = admin_labels()
     bad_admin = untranslated_admin_labels()
     print(f"\n  Подписей админ-панели:        {len(admin)}")
@@ -100,7 +100,7 @@ def main():
         for text in sorted(bad_admin):
             print(f"      - {text!r}")
 
-    # --- 5. Подписи автосозданных моделей связи M2M -------------------
+    # --- 5. 自动创建的 M2M 关联模型的标签-------------------
     through = through_labels()
     bad_through = untranslated_through_labels()
     print(f"\n  Подписей связей M2M:          {len(through)}")
@@ -111,7 +111,7 @@ def main():
         for text in sorted(bad_through):
             print(f"      - {text!r}")
 
-    # --- 6. Тексты оболочки интерфейса --------------------------------
+    # --- 6. 界面外壳文本--------------------------------
     print(f"\n  Текстов оболочки (portal/i18n.UI): {len(UI)}")
     for key, row in UI.items():
         if len(row) != 3:
@@ -121,7 +121,7 @@ def main():
             if not str(row[idx]).strip():
                 errors.append(f"UI[{key!r}]: пустой перевод для {lang}")
 
-    # --- 7. Пробелы: остались ли русские буквы в zh-переводах ---------
+    # --- 7. 空格：zh 译文中是否残留俄语字母---------
     bad = []
     for key, row in UI.items():
         for idx, lang in enumerate(LANGS):
@@ -129,7 +129,7 @@ def main():
                 continue
             text = str(row[idx])
             letters = {ch.lower() for ch in text if ch.lower() in CYRILLIC}
-            # допускаются только аббревиатуры ГОСТ-списка
+            # 只允许 GOST 清单中的缩写
             if letters - {"ф", "г", "и", "с"} and lang == "zh":
                 bad.append((key, lang, text))
     if bad:
@@ -137,7 +137,7 @@ def main():
         for key, lang, text in bad[:10]:
             print(f"      · {key} [{lang}]: {text}")
 
-    # --- 8. Демонстрация перевода -------------------------------------
+    # --- 8. 翻译演示-------------------------------------
     print("\n  Примеры перевода:")
     for sample in ("Заказы", "Статус", "Подписание", "Инвойс", "Сертификаты"):
         print(f"      {sample:<18} zh={tr(sample, 'zh'):<16} en={tr(sample, 'en')}")

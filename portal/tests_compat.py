@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
-"""Тесты совместимости с Python 3.14 (``portal/compat.py``).
+"""与 Python 3.14 的兼容性测试（``portal/compat.py``）。
 
-Копирование контекста шаблона — приём, на котором стоит отрисовка почти
-любой страницы. Django 4.2 выполняет его через ``copy(super())``, и на
-Python 3.14 это перестало работать: панель открывалась на главной, но
-любой переход отвечал ошибкой 500.
+模板上下文的复制是几乎每个页面的渲染所依赖的操作。
+Django 4.2 通过 ``copy(super())`` 完成它，而在
+Python 3.14 上这失效了：面板能在首页打开，但
+任何跳转都返回 500 错误。
 
-Здесь проверяется не номер версии, а само свойство: контекст должен
-копироваться, а обход — включаться только тогда, когда родная реализация
-действительно сломана.
+这里检查的不是版本号，而是属性本身：上下文必须
+可复制，而变通方案只在原生实现
+确实损坏时才启用。
 """
 
 import copy
@@ -21,10 +21,10 @@ from portal import compat
 
 
 class ContextCopyTest(SimpleTestCase):
-    """Копия контекста — основа отрисовки; она обязана работать."""
+    """上下文副本是渲染的基础；它必须可用。"""
 
     def test_base_context_is_copyable(self):
-        """Копия контекста создаётся и содержит отдельный список ``dicts``."""
+        """上下文副本被创建并包含独立的 ``dicts`` 列表。"""
         original = BaseContext()
         duplicate = copy.copy(original)
         self.assertIsInstance(duplicate, BaseContext)
@@ -33,11 +33,11 @@ class ContextCopyTest(SimpleTestCase):
         self.assertEqual(duplicate.dicts, original.dicts)
 
     def test_context_is_copyable(self):
-        """Подкласс ``Context`` копируется через ``super().__copy__()``.
+        """``Context`` 子类通过 ``super().__copy__()`` 复制。
 
-        Именно этот путь (``django/template/context.py``, ``Context``)
-        падал в исходном отчёте об ошибке. Копия поверхностная, поэтому
-        содержимое сохраняется, а список ``dicts`` — новый.
+        正是这条路径（``django/template/context.py``、``Context``）
+        在最初的错误报告中崩溃。副本是浅层的，因此
+        内容得以保留，而 ``dicts`` 列表是新的。
         """
         original = Context({"key": "value"})
         duplicate = copy.copy(original)
@@ -46,7 +46,7 @@ class ContextCopyTest(SimpleTestCase):
         self.assertIsNot(duplicate.dicts, original.dicts)
 
     def test_copy_shares_inner_dicts(self):
-        """Копирование поверхностное: список новый, словари — те же."""
+        """复制是浅层的：列表是新的，字典不变。"""
         original = BaseContext()
         duplicate = copy.copy(original)
         if original.dicts:
@@ -54,18 +54,18 @@ class ContextCopyTest(SimpleTestCase):
 
 
 class CompatPatchTest(SimpleTestCase):
-    """Сам обход: включается по необходимости и не срабатывает дважды."""
+    """变通本身：按需启用且不会重复生效。"""
 
     def setUp(self):
         self._original = BaseContext.__copy__
         self.addCleanup(setattr, BaseContext, "__copy__", self._original)
 
     def test_patch_is_idempotent(self):
-        """Повторный вызов не переписывает реализацию заново."""
+        """重复调用不会重新改写实现。"""
         self.assertFalse(compat.patch_template_context())
 
     def test_native_copy_is_kept_when_it_works(self):
-        """Если родная реализация работает — обход не включается."""
+        """若原生实现正常 — 不启用变通。"""
 
         def native(self):
             duplicate = self.__class__.__new__(self.__class__)
@@ -78,7 +78,7 @@ class CompatPatchTest(SimpleTestCase):
         self.assertIs(BaseContext.__copy__, native)
 
     def test_patch_replaces_broken_copy(self):
-        """Если копирование сломано — реализация подменяется рабочей."""
+        """若复制已损坏 — 实现被替换为可用的版本。"""
         if sys.version_info < compat.BROKEN_FROM:
             self.skipTest("на этой версии Python обход выключен по версии")
 
@@ -90,14 +90,14 @@ class CompatPatchTest(SimpleTestCase):
         BaseContext.__copy__ = broken
         self.assertTrue(compat.patch_template_context())
         self.assertIs(BaseContext.__copy__, compat._copy_context)
-        # И после подмены копия действительно создаётся.
+        # 且在替换之后副本确实会被创建。
         self.assertIsInstance(copy.copy(BaseContext()), BaseContext)
 
     def test_version_gate_wins_below_broken_from(self):
-        """Ниже ``BROKEN_FROM`` обход не включается, даже если копия сломана.
+        """版本低于 ``BROKEN_FROM`` 时，即使副本已损坏也不启用变通。
 
-        На 3.12 и 3.13 родная реализация работает, поэтому вмешиваться
-        нельзя — поведение Django должно остаться нетронутым.
+        在 3.12 和 3.13 上原生实现正常，因此不得干预 —
+        Django 的行为必须保持原样。
         """
         if sys.version_info >= compat.BROKEN_FROM:
             self.skipTest("на этой версии Python обход как раз и нужен")
@@ -110,7 +110,7 @@ class CompatPatchTest(SimpleTestCase):
         self.assertIs(BaseContext.__copy__, broken)
 
     def test_marker_records_the_substitution(self):
-        """Признак ``_portal_compat`` отличает подмену от родной функции."""
+        """标志 ``_portal_compat`` 用于区分替换版与原生函数。"""
         if sys.version_info < compat.BROKEN_FROM:
             self.skipTest("обход не нужен на этой версии Python")
         if BaseContext.__copy__ is not compat._copy_context:
@@ -118,7 +118,7 @@ class CompatPatchTest(SimpleTestCase):
         self.assertTrue(getattr(BaseContext.__copy__, "_portal_compat", False))
 
     def test_patched_copy_matches_original_semantics(self):
-        """Подмена повторяет поведение исходной реализации."""
+        """替换版复现原始实现的行为。"""
         source = BaseContext()
         source["a"] = 1
         source.push()

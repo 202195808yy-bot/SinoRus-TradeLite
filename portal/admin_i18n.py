@@ -1,61 +1,61 @@
 # -*- coding: utf-8 -*-
-"""Ленивый перевод подписей административной панели.
+"""管理面板标签的惰性翻译。
 
-Django строит подписи панели из метаданных моделей: ``verbose_name``
-приложения (``portal/apps.py``), моделей и полей (``portal/models.py``),
-подписи ``choices`` (статусы, виды документов, единицы измерения), а также
-``site_header`` / ``index_title`` (``portal/admin.py``). Все они заданы
-по-русски и от языка интерфейса не зависят — поэтому при выбранном китайском
-оболочка панели переводилась (её переводы входят в поставку Django),
-а названия моделей, полей и значений оставались русскими.
+Django 用模型元数据构建面板标签：应用的 ``verbose_name``
+（``portal/apps.py``）、模型和字段（``portal/models.py``）、
+``choices`` 标签（状态、文档种类、计量单位），以及
+``site_header`` / ``index_title`` (``portal/admin.py``)。它们全部
+以俄语指定，不随界面语言变化——因此选择中文时，
+面板外壳会被翻译（其译文包含在 Django 供货中），
+而模型、字段和值的名称仍是俄语。
 
-Решение — обернуть подписи в ленивую обёртку, которая переводится **в момент
-вывода**, когда активна выбранная локаль. Обёрток две, потому что требования
-к ним разные.
+解决办法是把标签包进惰性包装器，它在**输出
+的时刻**、即所选语言环境激活时才翻译。包装器有两个，因为对它们的
+要求各不相同。
 
-``LazyRu`` — обёртка-``Promise`` для подписей (``verbose_name``,
-``help_text``, заголовки панели). Django сам приводит подпись к строке
-(``capfirst()``, ``force_str()``, шаблон), а ``capfirst()`` проверяет
-``isinstance(x, str)`` — то есть обёртка **не должна** быть строкой, иначе
-она вернула бы исходный русский текст.
+``LazyRu`` ——标签用的 ``Promise`` 包装器（``verbose_name``、
+``help_text``、面板标题）。Django 自己会把标签转成字符串
+（``capfirst()``、``force_str()``、模板），而 ``capfirst()`` 会检查
+``isinstance(x, str)``——也就是说包装器**不能**是字符串，否则
+它会返回原始的俄语文本。
 
-``LazyChoice`` — подстрока ``str`` для подписей ``choices``. Здесь наоборот:
-значением объекта остаётся исходная русская строка, а переводится только
-вывод (``str()``/``format()``). Это нужно потому, что подписи ``choices``
-используются и как строки: ``portal/datasets.py`` склеивает их
-(``" · ".join(...)``), а миграции записывают их через ``StringSerializer``.
-Побочный эффект полезен: при ``makemigrations`` язык вообще не важен —
-сериализуется исходное значение.
+``LazyChoice`` ——``choices`` 标签用的 ``str`` 子类。这里恰好相反：
+对象的值保持为原始俄语字符串，被翻译的只是
+输出（``str()``/``format()``）。这样做是必要的，因为 ``choices``
+标签也会被当作字符串使用：``portal/datasets.py`` 会拼接它们
+（``" · ".join(...)``），而迁移通过 ``StringSerializer`` 写入它们。
+这个副作用是有用的：``makemigrations`` 时语言完全无关紧要——
+序列化的是原始值。
 
-Безопасность для миграций. ``django.db.migrations.serializer`` для
-``Promise`` записывает результат ``str()``, а ``Options.original_attrs``
-остаётся нетронутым, поэтому ``makemigrations`` новых миграций не видит
-(проверяется тестом ``AdminLabelTest.test_no_new_migrations``).
+对迁移安全。``django.db.migrations.serializer`` 对
+``Promise`` 写入 ``str()`` 的结果，而 ``Options.original_attrs``
+保持原样，因此 ``makemigrations`` 看不到任何新迁移
+（由测试 ``AdminLabelTest.test_no_new_migrations`` 验证）。
 
-Порядок поиска перевода — ``tr_admin()``: сначала ``ADMIN_LABELS``, затем
-``LABELS`` без учёта регистра (см. ``portal/admin_labels.py``).
+译文查找顺序是 ``tr_admin()``：先 ``ADMIN_LABELS``，然后
+是忽略大小写的 ``LABELS``（见 ``portal/admin_labels.py``）。
 
-Две подписи панель хранит не в метаданных, а **в базе**, и они тоже
-показываются пользователю:
+有两个标签面板不是存在元数据里，而是**存在数据库里**，它们同样
+会展示给用户：
 
-* ``Permission.name`` — при ``migrate`` в него записывается
-  «Can add <verbose_name_raw>», то есть русское название модели навсегда
-  (``tr_permission()`` собирает подпись заново из ``codename``);
-* ``LogEntry.change_message`` — JSON с названиями изменённых полей,
-  замороженными в момент правки (``tr_change_message()`` подменяет их
-  перед тем, как Django собирает фразу).
+* ``Permission.name`` ——``migrate`` 时会向其中写入
+  「Can add <verbose_name_raw>」，也就是永远的俄语模型名
+  （``tr_permission()`` 会从 ``codename`` 重新拼出标签）；
+* ``LogEntry.change_message`` ——包含被修改字段名称的 JSON，
+  在编辑时刻被冻结（``tr_change_message()`` 会在 Django 拼句之前
+  替换它们）。
 
-Обе обёртки включаются тем же ``localize()``.
+两个包装器都由同一个 ``localize()`` 启用。
 
-Третья группа подписей тоже не проходит через метаданные приложения —
-это **автосозданные модели связи M2M** (``Dialog.participants``,
-``User.groups`` и т. п.). Их ``verbose_name`` Django собирает из
-переводимой строки и подставляет имена модели и поля сразу, при импорте
-``models.py``, когда активна локаль по умолчанию: получается обычная
-русская строка «Связь dialog-user», которую ленивый перевод уже не берёт.
-Плюс у такой модели нет своего ``__str__``, поэтому панель показывала
-служебное «Dialog_participants object (1)». И то и другое видно на
-странице подтверждения удаления — см. ``_localize_through_models()``.
+第三组标签同样不经过应用元数据——
+它们是**自动创建的 M2M 关系模型**（``Dialog.participants``、
+``User.groups`` 等）。Django 从可翻译字符串拼出它们的 ``verbose_name``
+并在导入 ``models.py`` 时——此时默认语言环境处于激活状态——就替换好
+模型名和字段名：得到的是普通俄语字符串「关系 dialog-user」，
+惰性翻译对它已不起作用。
+此外，这类模型没有自己的 ``__str__``，因此面板显示的是
+服务性的「Dialog_participants object (1)」。这两种问题都能在
+删除确认页上看到——见 ``_localize_through_models()``。
 """
 
 import json
@@ -67,14 +67,14 @@ from django.utils.translation import gettext
 from .admin_labels import ADMIN_LABELS
 from .i18n import DEFAULT_LANG, LABELS, active_lang, tr_value
 
-#: Индексы «нижний регистр -> перевод». Строятся один раз, при первом
-#: обращении: словари большие, а поиск идёт на каждый вывод подписи.
+#: 「小写 -> 译文」的索引。只构建一次，即在首次
+#: 访问时：字典很大，而每次输出标签都要做查找。
 _CI_ADMIN = None
 _CI_LABELS = None
 
-#: Справочники — закрытые перечни (страны, валюты, единицы измерения, типы
-#: документов, отрасли, категории товаров). Их наименования панель выводит
-#: через ``__str__``, поэтому он тоже переводится.
+#: 字典是封闭的枚举（国家、货币、计量单位、文档
+#: 类型、行业、商品类别）。它们的名称由面板
+#: 通过 ``__str__`` 输出，因此 ``__str__`` 也要翻译。
 REFERENCE_MODELS = ("Country", "Currency", "Uom", "DocType", "Industry",
                     "GoodCategory")
 
@@ -98,12 +98,12 @@ def _ci_labels():
 
 
 def tr_admin(text, lang):
-    """Переводит подпись админ-панели. Неизвестная строка — как есть.
+    """翻译管理面板标签。未知字符串原样返回。
 
-    Первый шаг — точное совпадение в ``ADMIN_LABELS`` (там же лежат
-    намеренные исключения из ``OVERRIDES``). Второй — ``LABELS`` без учёта
-    регистра: подписи моделей строчные, подписи страниц заглавные, но
-    означают одно и то же слово.
+    第一步是在 ``ADMIN_LABELS`` 中精确匹配（其中也保存着
+    有意设置的 ``OVERRIDES`` 例外）。第二步是忽略大小写的
+    ``LABELS``：模型标签是小写，页面标签是首字母大写，但
+    指的是同一个词。
     """
     if not text or lang == DEFAULT_LANG or not isinstance(text, str):
         return text
@@ -116,12 +116,12 @@ def tr_admin(text, lang):
 
 
 class LazyRu(Promise):
-    """Подпись, которая переводится при приведении к строке.
+    """在转为字符串时才翻译的标签。
 
-    Не строка — и это существенно: ``capfirst()`` и шаблоны вызывают
-    ``str()``, а ``isinstance(x, str)`` даёт False и заставляет их это
-    сделать. ``Promise`` в базе нужен миграциям: сериализатор распознаёт
-    такие объекты и записывает ``str()``.
+    它不是字符串——这一点很重要：``capfirst()`` 和模板会调用
+    ``str()``，而 ``isinstance(x, str)`` 返回 False，从而迫使它们
+    这么做。``Promise`` 基类是迁移所需要的：序列化器会识别
+    这类对象并写入 ``str()``。
     """
 
     __slots__ = ("ru",)
@@ -160,16 +160,16 @@ class LazyRu(Promise):
         return format(str(self), spec)
 
     def __getattr__(self, name):
-        # .lower()/.capitalize()/.replace()/… — как у строки
+        # .lower()/.capitalize()/.replace()/… ——与字符串相同
         return getattr(str(self), name)
 
 
 class LazyChoice(str):
-    """Подпись перечисления: значение остаётся строкой, вывод переводится.
+    """枚举的标签：值仍是字符串，输出被翻译。
 
-    В отличие от ``LazyRu``, исходная русская строка — это и есть значение
-    объекта, поэтому склейка, сравнение и запись в миграции работают с ней.
-    Переводятся только ``str()`` и ``format()`` — то есть вывод в шаблоне.
+    与 ``LazyRu`` 不同，原始俄语字符串本身就是对象的值，
+    因此拼接、比较以及写入迁移都直接作用于它。
+    只有 ``str()`` 和 ``format()`` 被翻译——即模板中的输出。
     """
 
     def __new__(cls, ru):
@@ -183,12 +183,12 @@ class LazyChoice(str):
 
     @property
     def raw(self):
-        """Исходная русская строка — для самопроверки словаря."""
+        """原始俄语字符串——用于字典的自检。"""
         return str.__str__(self)
 
 
 def _wrap(obj, attr):
-    """Оборачивает строковый атрибут в ленивую подпись. True — если обернул."""
+    """把字符串属性包装成惰性标签。返回 True 表示已包装。"""
     value = getattr(obj, attr, None)
     if isinstance(value, str) and not isinstance(value, LazyChoice) and value:
         setattr(obj, attr, LazyRu(value))
@@ -197,7 +197,7 @@ def _wrap(obj, attr):
 
 
 def _wrap_pairs(pairs):
-    """Оборачивает список пар «значение — подпись». Возвращает (список, был ли)."""
+    """包装「值 — 标签」对的列表。返回（列表, 是否包装）。"""
     out, changed = [], False
     for value, label in pairs:
         if (isinstance(label, str) and label
@@ -210,11 +210,11 @@ def _wrap_pairs(pairs):
 
 
 def _wrap_choices(field):
-    """Оборачивает подписи ``choices``. True — если обернул.
+    """包装 ``choices`` 标签。返回 True 表示已包装。
 
-    Поддерживаются оба вида: плоский список пар и сгруппированный
-    («группа, [пары]»). Перечисляемые классы (``TextChoices``) и вызываемые
-    наборы пропускаются: у них подписи уже ленивые либо зависят от данных.
+    两种形式都支持：扁平的对列表和分组形式
+    （「组, [对]」）。枚举类（``TextChoices``）和可调用的
+    集合会被跳过：它们的标签已是惰性的，或依赖数据。
     """
     choices = getattr(field, "choices", None)
     if not choices or isinstance(choices, type) or callable(choices):
@@ -231,7 +231,7 @@ def _wrap_choices(field):
             continue
         value, label = item
         if isinstance(label, (list, tuple)):
-            # сгруппированные значения: (группа, [(значение, подпись), …])
+            # 分组值：(组, [(值, 标签), …])
             group, group_changed = _wrap_pairs(label)
             out.append((value, group))
             changed = changed or group_changed
@@ -247,7 +247,7 @@ def _wrap_choices(field):
 
 
 def _localize_str(model):
-    """Оборачивает ``__str__`` справочника. True — если обернул."""
+    """把字典的 ``__str__`` 包装起来。返回 True 表示已包装。"""
     original = model.__str__
     if getattr(original, "_portal_lazy", False):
         return False
@@ -260,29 +260,29 @@ def _localize_str(model):
     return True
 
 
-#: Глаголы стандартных разрешений: ``codename`` -> msgid из поставки Django.
-#: Именно msgid, а не готовый перевод: ``gettext()`` подставит ровно то
-#: слово, которым панель подписывает свои ссылки (Добавить / 增加 / Add),
-#: поэтому перевод не приходится выдумывать и он не разойдётся с панелью.
+#: 标准权限的动词：``codename`` -> Django 供货中的 msgid。
+#: 用的是 msgid 而不是现成译文：``gettext()`` 填入的正是
+#: 面板标注自身链接所用的那个词（添加 / 增加 / Add），
+#: 因此不必自己编造译文，它也不会与面板不一致。
 PERMISSION_VERBS = {"add": "Add", "change": "Change",
                     "delete": "Delete", "view": "View"}
 
 
 def tr_permission(perm):
-    """Подпись разрешения на текущем языке.
+    """当前语言下的权限标签。
 
-    ``Permission.name`` — обычное поле базы: при ``migrate`` в него
-    записывается «Can add <verbose_name_raw>» и хранится по-русски
-    независимо от языка интерфейса. Django берёт непереведённое имя
-    намеренно, чтобы данные не зависели от локали, — но в панели такая
-    подпись видна пользователю, поэтому на странице пользователя и группы
-    китайская шапка соседствовала со списком «Can add вложение».
+    ``Permission.name`` 是普通的数据库字段：``migrate`` 时会向其中
+    写入「Can add <verbose_name_raw>」，并以俄语存储，
+    不随界面语言变化。Django 特意取未翻译的名称，
+    为的是让数据不依赖语言环境——但在面板中这种
+    标签是用户看得见的，因此在用户页和组页上，
+    中文页眉旁边出现了「Can add 附件」这样的列表。
 
-    Подпись собирается заново из ``codename``: глагол переводится штатным
-    каталогом Django, название модели берётся из её ``verbose_name`` (он
-    уже обёрнут и переводится). Нестандартные разрешения
-    (``Meta.permissions``) и несуществующие модели возвращаются как в
-    базе — их ``codename`` не разбирается на действие и модель.
+    标签从 ``codename`` 重新拼出：动词用 Django 自带的
+    翻译目录翻译，模型名取自其 ``verbose_name``（它
+    已被包装、能翻译）。非标准权限
+    （``Meta.permissions``）和不存在的模型按数据库中的
+    原样返回——它们的 ``codename`` 无法拆解出动作和模型。
     """
     name = perm.name
     action, sep, rest = (perm.codename or "").partition("_")
@@ -296,7 +296,7 @@ def tr_permission(perm):
 
 
 def _localize_permission():
-    """Переводит подпись разрешения (``__str__`` модели ``Permission``)."""
+    """翻译权限标签（``Permission`` 模型的 ``__str__``）。"""
     from django.contrib.auth.models import Permission
 
     original = Permission.__str__
@@ -312,17 +312,17 @@ def _localize_permission():
 
 
 def tr_change_message(raw):
-    """Переводит названия полей и моделей внутри сообщения журнала.
+    """翻译日志消息内部的字段名和模型名。
 
-    ``LogEntry.change_message`` хранит JSON с названиями изменённых полей.
-    Они записаны в момент правки и потому по-русски; Django переводит
-    сообщение целиком (``gettext``), но русских названий полей в каталоге
-    нет, поэтому в китайской панели получалось «已修改статус 和 дата
-    подписания». Названия подменяются **до** форматирования — саму фразу
-    Django собирает сам, уже на нужном языке.
+    ``LogEntry.change_message`` 存储含被修改字段名称的 JSON。
+    它们在编辑时刻写入，因此是俄语；Django 会把消息
+    整体翻译（``gettext``），但翻译目录里没有俄语字段名，
+    因此中文面板里出现了「已修改状态 和 签署
+    日期」。名称在格式化**之前**就被替换——句子本身
+    由 Django 自己拼出，已经是对的语言。
 
-    Строки, которые не являются JSON (журнал умеет хранить и простое
-    сообщение), возвращаются как есть.
+    不是 JSON 的字符串（日志也能保存简单的
+    消息）原样返回。
     """
     if not raw or not raw.startswith("["):
         return raw
@@ -345,7 +345,7 @@ def tr_change_message(raw):
 
 
 def _localize_log_entry():
-    """Переводит сообщения журнала действий (``get_change_message``)."""
+    """翻译操作日志消息（``get_change_message``）。"""
     from django.contrib.admin.models import LogEntry
 
     original = LogEntry.get_change_message
@@ -355,8 +355,8 @@ def _localize_log_entry():
     def get_change_message(self):
         if active_lang() == DEFAULT_LANG:
             return original(self)
-        # Метод читает self.change_message, поэтому подменяем его на время
-        # вызова и возвращаем исходное значение: сам объект не меняется.
+        # 该方法会读取 self.change_message，因此我们在调用期间
+        # 把它临时换掉并返回原值：对象本身不变。
         raw = self.change_message
         self.change_message = tr_change_message(raw)
         try:
@@ -369,18 +369,18 @@ def _localize_log_entry():
     return True
 
 
-#: Начало подписи автосозданной модели связи M2M. Django собирает её из
-#: переводимой строки «%(from)s-%(to)s relationship» и подставляет имена
-#: модели и поля сразу, при импорте ``models.py`` (см. ``tr_through_label``).
+#: 自动创建的 M2M 关系模型标签的开头。Django 用可翻译
+#: 字符串「%(from)s-%(to)s relationship」拼出它，并在导入
+#: ``models.py`` 时就替换好模型名和字段名（见 ``tr_through_label``）。
 THROUGH_HEADS = ("Связь", "Связи")
 
 
 def tr_through_label(text, lang):
-    """Подпись связи M2M: переводится слово, остаток — техническое имя.
+    """M2M 关系的标签：翻译的是词，其余部分是技术名称。
 
-    Подпись автосозданной модели выглядит как «Связь dialog-user»: первое
-    слово — интерфейсное (его и переводим), «dialog-user» — имена модели
-    и поля, они одинаковы на всех языках и остаются как есть.
+    自动创建模型的标签形如「关系 dialog-user」：第一个
+    词是界面词（我们翻译的正是它），「dialog-user」是模型
+    和字段的名称，在所有语言下相同，保持原样。
     """
     head, sep, tail = text.partition(" ")
     if sep and head in THROUGH_HEADS:
@@ -389,7 +389,7 @@ def tr_through_label(text, lang):
 
 
 class LazyThrough(LazyRu):
-    """Подпись автосозданной модели связи M2M (см. ``tr_through_label``)."""
+    """自动创建的 M2M 关系模型的标签（见 ``tr_through_label``）。"""
 
     __slots__ = ()
 
@@ -398,7 +398,7 @@ class LazyThrough(LazyRu):
 
 
 def _wrap_through(obj, attr):
-    """Оборачивает подпись связи. True — если обернул."""
+    """包装关系标签。返回 True 表示已包装。"""
     value = getattr(obj, attr, None)
     if isinstance(value, str) and not isinstance(value, LazyRu) and value:
         setattr(obj, attr, LazyThrough(value))
@@ -407,14 +407,14 @@ def _wrap_through(obj, attr):
 
 
 def _localize_through_str(model):
-    """``__str__`` связи M2M: «<объект> — <объект>» вместо «… object (1)».
+    """M2M 关系的 ``__str__``：「<对象> — <对象>」而不是「… object (1)」。
 
-    У автосозданной модели своего ``__str__`` нет, и наследуется
-    ``Model.__str__`` — служебный ``repr`` вида «Dialog_participants
-    object (1)». На странице подтверждения удаления Django перечисляет
-    связанные объекты именно через ``str()``, поэтому пользователь видел
-    техническое имя класса с номером строки вместо «какой это диалог и
-    кто его участник».
+    自动创建的模型没有自己的 ``__str__``，继承下来的是
+    ``Model.__str__`` ——形如「Dialog_participants
+    object (1)」的服务性 ``repr``。在删除确认页上，Django 正是通过
+    ``str()`` 列出关联对象，因此用户看到的
+    是带行号的技术类名，而不是「这是哪个对话、
+    谁是它的参与者」。
     """
     original = model.__str__
     if getattr(original, "_portal_lazy", False):
@@ -439,16 +439,16 @@ def _localize_through_str(model):
 
 
 def _localize_through_models():
-    """Подписи и ``__str__`` автосозданных моделей связи M2M.
+    """自动创建的 M2M 关系模型的标签和 ``__str__``。
 
-    ``AppConfig.get_models()`` их не возвращает (``include_auto_created``
-    по умолчанию ``False``), поэтому ``localize()`` их пропускал — а они
-    видны на странице подтверждения удаления. В китайской панели выходило
+    ``AppConfig.get_models()`` 不返回它们（``include_auto_created``
+    默认为 ``False``），因此 ``localize()`` 会跳过它们——但它们
+    在删除确认页上是可见的。中文面板里显示为
 
-        Связи dialog-user: 2
-        Связь dialog-user: Dialog_participants object (1)
+        dialog-user 关系: 2
+        dialog-user 关系: Dialog_participants object (1)
 
-    то есть русская подпись рядом с китайскими, и служебное имя класса.
+    即俄语标签与中文并列，还有服务性的类名。
     """
     count = 0
     seen = set()
@@ -467,12 +467,12 @@ def _localize_through_models():
 
 
 def localize():
-    """Оборачивает подписи приложения, моделей, полей и перечислений.
+    """包装应用、模型、字段和枚举的标签。
 
-    Вызывается один раз из ``PortalConfig.ready()``. Повторный вызов
-    безвреден: обёрнутые подписи не являются строками (``LazyRu``) либо
-    уже помечены (``LazyChoice``), поэтому второй раз не оборачиваются.
-    Возвращает число обёрнутых подписей (используется в самопроверке).
+    从 ``PortalConfig.ready()`` 调用一次。重复调用
+    无害：已包装的标签要么不是字符串（``LazyRu``），要么
+    已带标记（``LazyChoice``），因此不会被再次包装。
+    返回被包装标签的数量（用于自检）。
     """
     count = 0
     config = apps.get_app_config("portal")

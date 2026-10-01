@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Дымовой тест: запрос каждой страницы приложения через тестовый клиент Django.
+"""冒烟测试：通过 Django 测试客户端请求应用的每个页面。
 
-Проверяет, что маршрут, представление и шаблон работают совместно.
-Запуск:  python tools/smoke_test.py
+检查路由、视图与模板能否协同工作。
+运行：  python tools/smoke_test.py
 """
 
 import os
@@ -21,7 +21,7 @@ from portal.pages import PAGES  # noqa: E402
 
 
 def main():
-    # регистрирует хост «testserver» в ALLOWED_HOSTS
+    # 在 ALLOWED_HOSTS 中注册 “testserver” 主机
     setup_test_environment()
     client = Client()
     ok, failed = 0, []
@@ -42,7 +42,7 @@ def main():
             print(f"  [ИСКЛЮЧЕНИЕ] {url:<38} {exc}")
             continue
         status = response.status_code
-        # 302 допустим для страниц, которые перенаправляют (выход, админ-панель)
+        # 对于会重定向的页面（退出、管理后台），302 是允许的
         good = status in (200, 302)
         flag = "OK " if good else "!! "
         if good:

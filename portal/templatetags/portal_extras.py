@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Дополнительные фильтры шаблонов приложения portal.
+"""portal 应用的附加模板过滤器。
 
-* ``tr``  — перевод произвольной русской подписи на текущий язык
-            (словарь ``portal/labels.py`` + тексты ``portal/i18n.py``);
-* ``fmt`` — подстановка значений в текст с заполнителями ``{n}``.
+* ``tr``  — 将任意俄语标签译为当前语言
+            (字典 ``portal/labels.py`` + ``portal/i18n.py`` 文本)；
+* ``fmt`` — 将值代入含占位符 ``{n}`` 的文本。
 
-Примеры::
+示例::
 
     {% load portal_extras %}
     {{ "Заказы"|tr }}
@@ -21,14 +21,14 @@ register = template.Library()
 
 @register.filter(name="tr", takes_context=True)
 def tr_filter(context, text):
-    """Переводит строку на язык текущего запроса."""
+    """将字符串翻译为当前请求的语言。"""
     lang = context.get("LANG", DEFAULT_LANG)
     return _tr(text, lang)
 
 
 @register.filter(name="fmt")
 def fmt(text, value=""):
-    """Подставляет значение в текст: ``"Показаны первые {n}"|fmt:5``."""
+    """将值代入文本：``"Показаны первые {n}"|fmt:5``。"""
     try:
         return str(text).format(value)
     except (IndexError, KeyError, ValueError):

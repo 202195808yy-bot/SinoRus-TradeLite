@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Генерация docs/pages.{ru,zh,en}.md из реестра страниц portal/pages.py.
+"""从页面注册表 portal/pages.py 生成 docs/pages.{ru,zh,en}.md。
 
-Единый источник данных гарантирует, что перечень страниц в репозитории
-и в документе «Описание страниц приложения» не расходятся.
+单一数据源保证仓库中的页面清单与《应用页面说明》
+文档中的清单保持一致。
 
-Запуск:  python tools/gen_docs.py
+运行：  python tools/gen_docs.py
 """
 
 import os

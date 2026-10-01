@@ -1,19 +1,19 @@
 # -*- coding: utf-8 -*-
-"""Тесты переключения языка интерфейса (доработка этапа 4).
+"""界面语言切换测试（阶段 4 的完善）。
 
-Проверяются:
+检查内容：
 
-* выбор языка: ``?lang=`` / маршрут ``/lang/<код>/`` -> сессия ->
-  язык по умолчанию;
-* перевод названий и описаний страниц из реестра ``portal/pages.py``;
-* перевод подписей блоков данных (заголовки таблиц, подписи KPI);
-* перевод **перечислений** (``choices`` моделей) и **значений
-  справочников** — они приходят в ячейки значениями, а не подписями;
-* сохранение свободных данных: наименования, номера, даты не переводятся;
-* полнота словарей ``portal/labels.py`` и ``portal/i18n.py``;
-* переключение административной панели тем же выбором языка;
-* языковая чистота: русская версия без иероглифов, китайская — без
-  кириллицы (кроме общепринятых обозначений).
+* 语言选择：``?lang=`` / 路由 ``/lang/<код>/`` -> 会话 ->
+  默认语言；
+* 翻译注册表 ``portal/pages.py`` 中的页面名称与描述；
+* 翻译数据块的标签（表头、KPI 标签）；
+* 翻译**枚举**（模型 ``choices``）与**字典
+  值** — 它们以值而非标签的形式进入单元格；
+* 保留自由数据：名称、编号、日期不翻译；
+* 字典 ``portal/labels.py`` 与 ``portal/i18n.py`` 的完整性；
+* 管理面板通过相同的语言选择进行切换；
+* 语言纯净性：俄语版本不含汉字，中文版本不含
+  西里尔字母（通行写法除外）。
 """
 
 import inspect
@@ -46,54 +46,54 @@ from .views import _page_data
 CJK = re.compile(r"[\u4e00-\u9fff]")
 CYR = re.compile(r"[\u0400-\u04ff]")
 
-#: кириллица, допустимая в китайских текстах (общепринятые обозначения)
+#: 中文文本中允许出现的西里尔字母（通行写法）
 CYR_ALLOWED_IN_ZH = {"ИНН"}
 
-#: Комментарии разметки и стилей — не текст интерфейса, пользователь их
-#: не видит. В шаблонах проекта они по-русски, как и остальные пояснения.
+#: 标记与样式的注释不是界面文本，用户看不到
+#: 它们。项目模板中它们与其他说明一样使用俄语。
 COMMENTS = re.compile(r"<!--.*?-->|/\*.*?\*/", re.S)
 
-#: кириллица, допустимая в панели: названия языков даны на самих языках
-#: (в переключателе ``title="Русский"`` — так же, как на страницах портала).
+#: 面板中允许出现的西里尔字母：语言名称以其自身语言书写
+#: (切换器中的 ``title="Русский"`` — 与门户页面相同)。
 CYR_ALLOWED_IN_ADMIN = {name for name in LANG_LABELS.values() if CYR.search(name)}
 
-#: Поля, которые панель заполняет сама и хранит в базе. Их содержимое —
-#: подписи, а не свободные данные, поэтому в белый список они не попадают:
-#: именно на них ловится «замороженный» русский текст.
+#: 由面板自行填写并存入数据库的字段。其内容是
+#: 标签而非自由数据，因此不会进入白名单：
+#: 正是在这些字段上捕获“冻结的”俄语文本。
 GENERATED_LABEL_FIELDS = {
     ("auth", "permission"): {"name"},
     ("admin", "logentry"): {"change_message"},
 }
 
-#: Минимальная длина обрезка, который считается данными. Панель показывает
-#: длинный текст усечённым (``Truncator``), поэтому в разметку попадает
-#: часть слова — «сертифика» от «сертификата». Такие обрезки разрешены, но
-#: не короче этого порога: иначе под короткой подписью («Дата», «Роль»)
-#: маскировалось бы что угодно.
+#: 被视为数据的截断文本的最小长度。面板显示长文本时
+#: 会将其截断（``Truncator``），因此标记中会混入
+#: 词的一部分 — «сертификата» 的 «сертифика»。这类截断是允许的，但
+#: 不能短于该阈值：否则在短标签（«Дата»、«Роль»）之下
+#: 任何东西都会被掩盖。
 MIN_TRUNCATED = 5
 
 
 def cyr_words(text):
-    """Слова из кириллицы в строке."""
+    """字符串中的西里尔字母单词。"""
     return set(re.findall(r"[\u0400-\u04ff][\u0400-\u04ff\-.]*", text))
 
 
 def visible_text(html):
-    """Разметка без комментариев — только то, что видит пользователь."""
+    """不含注释的标记 — 只包含用户看到的内容。"""
     return COMMENTS.sub(" ", html)
 
 
 def demo_words():
-    """Кириллические слова из демонстрационных данных.
+    """来自演示数据的西里尔字母词汇。
 
-    Свободные данные — наименования предприятий и товаров, номера, адреса,
-    свободные примечания, ключи JSON-полей — переводить нельзя, поэтому в
-    словаре их нет. Чтобы проверка «в китайской панели не осталось русских
-    подписей» не спотыкалась о данные, их слова собираются из самой базы.
+    自由数据——企业和商品的名称、编号、地址、
+    自由备注、JSON 字段键——不可翻译，因此
+    词典中没有它们。为了让“中文面板中不残留俄语
+    标签”的检查不被数据绊住，这些词汇直接从数据库本身收集。
 
-    Обходятся **все** приложения, а не только ``portal``: на странице
-    пользователя видны его имя и фамилия (``auth``), в журнале — снимок
-    объекта (``admin``). Исключения — ``GENERATED_LABEL_FIELDS``.
+    遍历的是 **所有** 应用，而不只是 ``portal``：用户页面上
+    会显示其姓名（``auth``），日志中——对象的快照
+    （``admin``）。例外是 ``GENERATED_LABEL_FIELDS``。
     """
     from django.db import models as dj
 
@@ -120,7 +120,7 @@ def demo_words():
 
 
 class LanguageSelectionTest(TestCase):
-    """Выбор языка: параметр запроса, сессия, значение по умолчанию."""
+    """语言选择：请求参数、会话、默认值。"""
 
     def setUp(self):
         self.client = Client(HTTP_HOST="localhost")
@@ -138,7 +138,7 @@ class LanguageSelectionTest(TestCase):
     def test_choice_is_remembered_in_session(self):
         self.client.get("/orders/?lang=zh")
         self.assertEqual(self.client.session["lang"], "zh")
-        # следующий запрос без параметра — язык берётся из сессии
+        # 下一个不带参数的请求 — 语言取自会话
         response = self.client.get("/goods/")
         self.assertEqual(response.context["LANG"], "zh")
 
@@ -162,12 +162,12 @@ class LanguageSelectionTest(TestCase):
         for code in LANGS:
             self.assertIn(LANG_SHORT[code], html)
         self.assertIn('class="lang-btn is-active"', html)
-        # переключатель ведёт на отдельный маршрут и сохраняет текущий адрес
+        # 切换器指向单独的路由并保留当前地址
         self.assertIn("/lang/ru/?next=%2Forders%2F", html)
         self.assertIn("/lang/en/?next=%2Forders%2F", html)
 
     def test_switch_endpoint_remembers_and_returns(self):
-        """Маршрут переключения запоминает язык и возвращает на исходный адрес."""
+        """切换路由会记住语言并返回原始地址。"""
         response = self.client.get("/lang/en/?next=" + quote("/orders/", safe=""))
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], "/orders/")
@@ -175,14 +175,14 @@ class LanguageSelectionTest(TestCase):
         self.assertEqual(self.client.get("/orders/").context["LANG"], "en")
 
     def test_switch_endpoint_rejects_external_redirect(self):
-        """Защита от открытого перенаправления: чужой адрес заменяется на «/»."""
+        """防范开放重定向：外部地址会被替换为“/”。"""
         for bad in ("//evil.example.com/", "https://evil.example.com/", "evil"):
             response = self.client.get(
                 "/lang/ru/?next=" + quote(bad, safe=""))
             self.assertEqual(response["Location"], "/", bad)
 
     def test_switch_endpoint_ignores_unknown_code(self):
-        """Неизвестный код языка не ломает выбор: остаётся прежний."""
+        """未知的语言代码不会破坏选择：保持原来的选择。"""
         self.client.get("/lang/zh/?next=%2Forders%2F")
         self.client.get("/lang/de/?next=%2Forders%2F")
         self.assertEqual(self.client.session["lang"], "zh")
@@ -194,10 +194,10 @@ class LanguageSelectionTest(TestCase):
         self.assertIn('lang="en"', self.client.get("/?lang=en").content.decode())
 
     def test_logout_keeps_language(self):
-        """Выход из системы не сбрасывает выбранный язык.
+        """退出登录不会重置所选语言。
 
-        ``auth_logout()`` очищает сессию целиком, вместе с языком, поэтому
-        представление выхода сохраняет выбор и восстанавливает его.
+        ``auth_logout()`` 会连同语言一起清空整个会话，因此
+        退出视图会保存选择并恢复它。
         """
         from django.contrib.auth import get_user_model
         user = get_user_model().objects.create_user(
@@ -210,7 +210,7 @@ class LanguageSelectionTest(TestCase):
 
 
 class PageContentLanguageTest(TestCase):
-    """Название, назначение и содержание страницы — на текущем языке."""
+    """页面名称、用途和内容均按当前语言显示。"""
 
     def test_resolved_fields_match_registry_helpers(self):
         for page in PAGES:
@@ -221,7 +221,7 @@ class PageContentLanguageTest(TestCase):
                 self.assertEqual(data["content"], content_of(page, lang))
 
     def test_russian_version_has_no_cjk(self):
-        """Русская версия описаний не должна содержать иероглифов."""
+        """描述的俄语版本不应包含汉字。"""
         offenders = [(p["name"], field)
                      for p in PAGES
                      for field in ("ru", "purpose_ru", "content_ru")
@@ -229,7 +229,7 @@ class PageContentLanguageTest(TestCase):
         self.assertEqual(offenders, [], f"китайские символы в ru: {offenders}")
 
     def test_chinese_version_is_translated_and_clean(self):
-        """Китайская версия переведена и почти не содержит кириллицы."""
+        """中文版本已翻译，且几乎不含西里尔字母。"""
         for page in PAGES:
             data = _page_data(page, "zh")
             self.assertTrue(CJK.search(data["purpose"]),
@@ -240,7 +240,7 @@ class PageContentLanguageTest(TestCase):
                             f"{extra - CYR_ALLOWED_IN_ZH}")
 
     def test_legacy_keys_are_overridden_by_language(self):
-        """Исторические ключи purpose/content больше не «залипают» на китайском."""
+        """历史键 purpose/content 不再“卡”在中文上。"""
         page = PAGES[0]
         self.assertEqual(_page_data(page, "ru")["purpose"], page["purpose_ru"])
         self.assertEqual(_page_data(page, "zh")["purpose"], page["purpose_zh"])
@@ -257,7 +257,7 @@ class PageContentLanguageTest(TestCase):
 
 
 class BlockLabelTranslationTest(TestCase):
-    """Подписи блоков данных переводятся, значения ячеек — нет."""
+    """数据块的标签会被翻译，单元格的值则不会。"""
 
     @classmethod
     def setUpTestData(cls):
@@ -279,7 +279,7 @@ class BlockLabelTranslationTest(TestCase):
         self.assertEqual(ru[0], "Номер")
         self.assertEqual(zh[0], "编号")
         self.assertEqual(en[0], "Number")
-        # русская версия без иероглифов, китайская — без кириллицы
+        # 俄语版本不含汉字，中文版本不含西里尔字母
         self.assertFalse(any(CJK.search(h) for h in ru))
         self.assertFalse(any(CYR.search(h) for h in zh))
 
@@ -289,16 +289,16 @@ class BlockLabelTranslationTest(TestCase):
             self.assertIn(expected, html)
 
     def test_cell_values_are_not_translated(self):
-        """Значения ячеек — данные, они не подменяются словарём."""
+        """单元格的值是数据，不会被词典替换。"""
         response = self.client.get("/orders/?lang=zh")
         html = response.content.decode()
-        self.assertIn("ORD-", html)          # номера документов как есть
+        self.assertIn("ORD-", html)          # 单证编号保持原样
 
     def test_translate_blocks_does_not_touch_free_data(self):
-        """Свободные данные в ячейках остаются как есть.
+        """单元格中的自由数据保持原样。
 
-        Перечисление («Подписан») переводится, потому что есть в словаре,
-        а наименование предприятия — нет: его в словаре нет.
+        枚举值（“已签署”）会被翻译，因为它在词典中，
+        而企业名称则不会：词典里没有它。
         """
         blocks = [{"kind": "table", "title": "Заказы", "empty": "Заказов нет",
                    "columns": ["Статус"],
@@ -325,7 +325,7 @@ class BlockLabelTranslationTest(TestCase):
 
 
 class InterfaceTextTest(TestCase):
-    """Словари переводов интерфейса заполнены полностью."""
+    """界面翻译词典已填写完整。"""
 
     def test_labels_have_two_translations(self):
         broken = [key for key, row in LABELS.items()
@@ -363,16 +363,16 @@ class InterfaceTextTest(TestCase):
 
 
 class AdminLanguageTest(TestCase):
-    """Административная панель переключается тем же выбором языка.
+    """管理面板用同样的语言选择来切换。
 
-    Панель использует шаблоны и переводы Django, поэтому здесь проверяется,
-    что ``LanguageMiddleware`` активирует нужную локаль и что переключатель
-    языка отрисован.
+    面板使用 Django 的模板和翻译，因此这里检查
+    ``LanguageMiddleware`` 会激活所需的 locale，以及语言
+    切换器已渲染出来。
 
-    Переключатель ведёт на маршрут ``portal:set_language``, а не на
-    ``?lang=``: в списках панели Django считает неизвестный параметр
-    фильтром и отвечает лишним перенаправлением (см.
-    ``test_admin_list_page_rejects_lang_query``).
+    切换器指向 ``portal:set_language`` 路由，而不是
+    ``?lang=``：在面板的列表中 Django 会把未知参数
+    当作过滤器并返回多余的重定向（参见
+    ``test_admin_list_page_rejects_lang_query``）。
     """
 
     @classmethod
@@ -388,7 +388,7 @@ class AdminLanguageTest(TestCase):
         self.client.force_login(self.root)
 
     def switch(self, code, target="/admin/"):
-        """Переключение языка так же, как это делает ссылка в шапке панели."""
+        """切换语言的方式与面板头部链接的做法相同。"""
         return self.client.get(
             "/lang/%s/?next=%s" % (code, quote(target, safe="")))
 
@@ -396,8 +396,8 @@ class AdminLanguageTest(TestCase):
         self.assertEqual(self.client.get("/admin/").status_code, 200)
 
     def test_admin_follows_language(self):
-        """Интерфейс панели переводится вместе с выбором языка."""
-        # Django переводит «Add» как Добавить / 增加 / Add
+        """面板界面随语言选择一起翻译。"""
+        # Django 将 «Add» 译为 Добавить / 增加 / Add
         expected = {"ru": "Добавить", "zh": "增加", "en": "Add"}
         for code in LANGS:
             self.switch(code)
@@ -423,7 +423,7 @@ class AdminLanguageTest(TestCase):
         self.assertIn("is-active", html)
 
     def test_admin_switcher_link_round_trip(self):
-        """Ссылка из шапки действительно переключает язык и возвращает назад."""
+        """头部链接确实会切换语言并返回原处。"""
         html = self.client.get("/admin/").content.decode()
         match = re.search(r'href="(/lang/zh/\?next=[^"]+)"', html)
         self.assertIsNotNone(match, "ссылка переключателя не найдена")
@@ -433,8 +433,8 @@ class AdminLanguageTest(TestCase):
         self.assertEqual(self.client.session["lang"], "zh")
 
     def test_admin_switcher_on_login_page(self):
-        """На странице входа переключатель тоже есть (блок branding)."""
-        client = Client(HTTP_HOST="localhost")       # анонимный
+        """登录页面上也有切换器（branding 区块）。"""
+        client = Client(HTTP_HOST="localhost")       # 匿名
         html = client.get("/admin/login/").content.decode()
         self.assertIn("admin-lang", html)
         self.assertIn("/lang/ru/?next=%2Fadmin%2Flogin%2F", html)
@@ -445,7 +445,7 @@ class AdminLanguageTest(TestCase):
         self.assertEqual(self.client.get("/admin/").context["LANG"], "en")
 
     def test_admin_deep_pages_keep_working(self):
-        """Выбранный язык не мешает разделам панели (адрес без ?lang=)."""
+        """所选语言不影响面板的各分区（地址不含 ?lang=）。"""
         self.switch("zh")
         for url in ("/admin/portal/order/", "/admin/portal/order/1/change/",
                     "/admin/portal/good/", "/admin/auth/user/"):
@@ -453,42 +453,42 @@ class AdminLanguageTest(TestCase):
             self.assertEqual(response.status_code, 200, url)
 
     def test_admin_list_page_rejects_lang_query(self):
-        """``?lang=`` в списке панели Django принимает за фильтр.
+        """``?lang=`` 在 Django 面板的列表中被当作过滤器。
 
-        Это и есть причина отдельного маршрута переключения: запрос
-        ``/admin/portal/order/?lang=zh`` отвечает перенаправлением с
-        пометкой об ошибке (``?e=1``), а не страницей списка.
+        这正是需要单独切换路由的原因：请求
+        ``/admin/portal/order/?lang=zh`` 返回带错误标记
+        （``?e=1``）的重定向，而不是列表页面。
         """
         response = self.client.get("/admin/portal/order/?lang=zh")
         self.assertEqual(response.status_code, 302)
         self.assertIn("e=1", response["Location"])
 
     def test_portal_and_admin_share_the_choice(self):
-        """Один и тот же выбор языка действует и в приложении, и в панели."""
+        """同一个语言选择在应用和面板中都生效。"""
         self.client.get("/?lang=zh")
         self.assertEqual(self.client.get("/admin/").context["LANG"], "zh")
         self.assertEqual(self.client.get("/orders/").context["LANG"], "zh")
 
 
 class AdminLabelTest(TestCase):
-    """Подписи панели — названия моделей, полей и значений — следуют языку.
+    """面板的标签——模型、字段和值的名称——跟随语言。
 
-    Панель берёт их из метаданных ORM, а не из провайдеров страниц, поэтому
-    без обёртки они всегда русские (``portal/admin_i18n.py``). Обёрток две:
-    ``LazyRu`` — для подписей, ``LazyChoice`` — для подписей ``choices``;
-    последние остаются настоящими строками, потому что ``portal/datasets.py``
-    их склеивает, а миграции записывают.
+    面板从 ORM 元数据获取它们，而不是从页面提供器，因此
+    没有包装器时它们始终是俄语（``portal/admin_i18n.py``）。包装器有两个：
+    ``LazyRu``——用于标签，``LazyChoice``——用于 ``choices`` 的标签；
+    后者仍是真实的字符串，因为 ``portal/datasets.py``
+    会拼接它们，而迁移会将其写入。
 
-    Ещё две подписи панель хранит **в базе**, и они тоже заморожены
-    по-русски: ``Permission.name`` (собирается при ``migrate`` как «Can add
-    <verbose_name_raw>») и ``LogEntry.change_message`` (названия изменённых
-    полей записываются в момент правки). Обе переводятся на выводе.
+    另外两个标签面板存储 **在数据库中**，它们同样
+    以俄语冻结：``Permission.name``（在 ``migrate`` 时生成为“Can add
+    <verbose_name_raw>”）和 ``LogEntry.change_message``（被修改字段的
+    名称在编辑时写入）。两者都在输出时翻译。
 
-    Третья группа — **автосозданные модели связи M2M**: их ``verbose_name``
-    Django собирает при импорте ``models.py`` из переводимой строки, а
-    ``get_models()`` такие модели не возвращает, поэтому их пропускал и
-    ``localize()``, и обход метаданных. Видны они на странице
-    подтверждения удаления.
+    第三组是 **自动创建的 M2M 关系模型**：它们的 ``verbose_name``
+    由 Django 在导入 ``models.py`` 时从可翻译字符串拼出，而
+    ``get_models()`` 不返回这类模型，因此 ``localize()``
+    和元数据遍历都跳过了它们。它们显示在删除
+    确认页面上。
     """
 
     @classmethod
@@ -502,9 +502,9 @@ class AdminLabelTest(TestCase):
             username="root-labels", email="root@example.com",
             password="admin-test-pass")
 
-        # Запись журнала с русскими названиями полей — такую создаёт сама
-        # панель при правке объекта. Нужна, чтобы страница истории тоже
-        # проверялась на «замороженные» подписи.
+        # 带俄语字段名的日志记录 — 面板在编辑对象时会
+        # 自行创建这种记录。需要它以便历史页面
+        # 也接受“冻结”标签检查。
         order = m.Order.objects.first()
         cls.log_entry = LogEntry.objects.log_action(
             user_id=cls.root.pk,
@@ -517,21 +517,21 @@ class AdminLabelTest(TestCase):
         self.client = Client(HTTP_HOST="localhost")
         self.client.force_login(self.root)
 
-    # ---------------------------------------------------------- словарь
+    # ---------------------------------------------------------- 字典
     def test_every_admin_label_is_translated(self):
         missing = untranslated_admin_labels()
         self.assertEqual(missing, set(),
                          f"нет перевода подписей панели: {sorted(missing)}")
 
     def test_admin_overrides_are_explicit(self):
-        """Расхождения с словарём страниц должны быть объявлены явно."""
+        """与页面词典的差异必须显式声明。"""
         self.assertEqual(set(admin_overrides()), set(OVERRIDES),
                          f"переводы разъехались: {admin_overrides()}")
 
     def test_admin_labels_are_not_empty(self):
         self.assertGreater(len(admin_labels()), 200)
 
-    # ------------------------------------------------- ленивый перевод
+    # ------------------------------------------------- 惰性翻译
     def test_app_name_follows_language(self):
         name = apps.get_app_config("portal").verbose_name
         self.assertEqual(str(name), "Портал трансграничной торговли")
@@ -568,7 +568,7 @@ class AdminLabelTest(TestCase):
             self.assertEqual(str(labels["draft"]), "Draft")
 
     def test_reference_str_follows_language(self):
-        """Внешние ключи справочников показываются переведёнными."""
+        """字典的外键以翻译后的形式显示。"""
         country = m.Country.objects.get(name_ru="Россия")
         uom = m.Uom.objects.get(name_ru="штука")
         self.assertEqual(str(country), "RU — Россия")
@@ -578,31 +578,31 @@ class AdminLabelTest(TestCase):
             self.assertEqual(str(uom), "件 (pcs)")
 
     def test_free_data_is_not_translated(self):
-        """Свободные данные остаются как есть на любом языке."""
+        """自由数据在任何语言下都保持原样。"""
         good = m.Good.objects.first()
         with translation.override("zh-hans"):
             self.assertNotEqual(str(good), "")
             self.assertEqual(str(good), str(good.raw) if hasattr(good, "raw")
                              else str(good))
 
-    # ----------------------------- подписи choices остаются строками
+    # ----------------------------- choices 标签保持为字符串
     def test_choice_label_stays_a_string(self):
-        """Регресс: ``portal/datasets.py`` склеивает подписи ``choices``."""
+        """回归：``portal/datasets.py`` 会拼接 ``choices`` 的标签。"""
         choices = list(m.Incident._meta.get_field("kind").choices)
         joined = " · ".join(label for _value, label in choices)
         self.assertIsInstance(joined, str)
         self.assertEqual(joined,
                          " · ".join(label.raw for _v, label in choices))
         label = choices[0][1]
-        self.assertIsInstance(label, str)          # сравнение — по исходной
+        self.assertIsInstance(label, str)          # 比较 — 按原始值
         self.assertEqual(label, label.raw)
 
-    # -------------------------------------------------- панель целиком
+    # -------------------------------------------------- 整个面板
     def test_admin_shell_has_no_cyrillic(self):
-        """Страницы без данных: интерфейс полностью переведён.
+        """无数据页面：界面已完全翻译。
 
-        Комментарии разметки и стилей не считаются текстом интерфейса,
-        а названия языков в переключателе даны на самих языках.
+        标记和样式中的注释不算作界面文本，
+        而切换器中的语言名称则以各自的语言书写。
         """
         pages = ("/admin/", "/admin/portal/", "/admin/portal/currency/",
                  "/admin/portal/auditlog/")
@@ -616,11 +616,11 @@ class AdminLabelTest(TestCase):
                 self.assertEqual(offenders, set(), f"{code} {url}: {offenders}")
 
     def test_admin_pages_have_no_russian_interface(self):
-        """На страницах с данными кириллица остаётся только в данных.
+        """有数据的页面上，西里尔字母只保留在数据中。
 
-        Список страниц намеренно широкий: именно пропуск страницы
-        пользователя скрыл однажды подписи разрешений («Can add вложение»),
-        а пропуск истории — названия полей в журнале.
+        页面清单特意取得很宽：曾有一次正是漏掉了
+        用户页面，导致权限标签（“Can add 附件”）被遗漏，
+        而漏掉历史页面则漏掉了日志中的字段名称。
         """
         allowed = demo_words() | CYR_ALLOWED_IN_ADMIN
         pages = ("/admin/portal/order/", "/admin/portal/order/1/change/",
@@ -634,10 +634,10 @@ class AdminLabelTest(TestCase):
                  "/admin/portal/good/add/", "/admin/portal/tariff/add/",
                  "/admin/auth/user/", "/admin/auth/user/1/change/",
                  "/admin/auth/group/", "/admin/auth/group/add/",
-                 # Страницы подтверждения удаления: Django перечисляет на
-                 # них связанные объекты, в том числе через автосозданные
-                 # модели связи M2M («Связи dialog-user»). Их пропуск
-                 # скрывал и русскую подпись, и служебное «… object (1)».
+                 # 删除确认页面：Django 会在其上列出
+                 # 关联对象，包括通过自动创建的
+                 # M2M 关联模型（«Связи dialog-user»）。跳过它们
+                 # 曾同时隐藏俄语标签和系统文字“… object (1)”。
                  "/admin/portal/dialog/1/delete/",
                  "/admin/portal/order/1/delete/",
                  "/admin/auth/user/2/delete/")
@@ -650,16 +650,16 @@ class AdminLabelTest(TestCase):
                              - allowed)
                 self.assertEqual(offenders, set(), f"{code} {url}: {offenders}")
 
-    # ------------------------------------- подписи, замороженные в базе
+    # ------------------------------------- 数据库中冻结的标签
     def test_permission_labels_follow_language(self):
-        """Подписи разрешений собираются заново из ``codename``.
+        """权限标签从 ``codename`` 重新生成。
 
-        В базе лежит «Can add вложение»: Django записывает туда
-        непереведённое название модели, чтобы данные не зависели от локали.
-        В панели такая подпись видна, поэтому она переводится на выводе.
+        数据库中存的是“Can add 附件”：Django 往里写入
+        未翻译的模型名称，以便数据不依赖 locale。
+        面板中能看到这样的标签，因此在输出时翻译。
         """
         perm = Permission.objects.get(codename="add_attachment")
-        self.assertEqual(perm.name, "Can add вложение")      # как в базе
+        self.assertEqual(perm.name, "Can add вложение")      # 与数据库中一致
         self.assertEqual(str(perm), "portal | вложение | Добавить вложение")
         with translation.override("zh-hans"):
             self.assertEqual(str(perm), "portal | 附件 | 增加 附件")
@@ -667,7 +667,7 @@ class AdminLabelTest(TestCase):
             self.assertEqual(str(perm), "portal | Attachment | Add Attachment")
 
     def test_permission_verbs_match_the_panel(self):
-        """Глагол разрешения совпадает с надписью панели на том же языке."""
+        """权限动词与同一语言的面板标签一致。"""
         for code, verb in (("zh-hans", "增加"), ("ru", "Добавить")):
             with translation.override(code):
                 label = str(Permission.objects.get(codename="add_user"))
@@ -675,7 +675,7 @@ class AdminLabelTest(TestCase):
                                  f"{code}: глагол не совпал с надписью панели")
 
     def test_custom_permission_keeps_its_name(self):
-        """Нестандартное разрешение не разбирается и остаётся как в базе."""
+        """非标准权限不做解析，保持数据库中的原样。"""
         content_type = ContentType.objects.get_for_model(m.Order)
         perm = Permission(name="Can approve order", codename="can_approve_order",
                           content_type=content_type)
@@ -683,7 +683,7 @@ class AdminLabelTest(TestCase):
             self.assertEqual(tr_permission(perm), "Can approve order")
 
     def test_log_message_follows_language(self):
-        """Названия полей в журнале переводятся, сама запись не меняется."""
+        """日志中的字段名称会被翻译，记录本身不变。"""
         entry = LogEntry.objects.get(pk=self.log_entry.pk)
         raw = entry.change_message
         self.assertIn("статус", raw)
@@ -696,34 +696,34 @@ class AdminLabelTest(TestCase):
         with translation.override("en"):
             self.assertEqual(entry.get_change_message(),
                              "Changed Status and Signed date.")
-        # вывод не должен записывать перевод в базу
+        # 输出不应把翻译写入数据库
         self.assertEqual(LogEntry.objects.get(pk=self.log_entry.pk).change_message,
                          raw)
 
     def test_log_message_keeps_plain_text(self):
-        """Журнал умеет хранить и простое сообщение — его не трогаем."""
+        """日志也能存储简单消息——不去动它。"""
         entry = LogEntry(object_repr="x", change_message="Изменено вручную.")
         with translation.override("zh-hans"):
             self.assertEqual(entry.get_change_message(), "Изменено вручную.")
 
-    # -------------------- автосозданные модели связи M2M (delete-страница)
+    # -------------------- 自动创建的 M2M 关联模型（删除页面）
     def test_every_through_label_is_translated(self):
-        """Для каждой подписи связи M2M есть перевод."""
+        """每个 M2M 关系标签都有翻译。"""
         missing = untranslated_through_labels()
         self.assertEqual(missing, set(),
                          f"нет перевода подписей связей M2M: {sorted(missing)}")
         self.assertGreaterEqual(len(through_labels()), 4)
 
     def test_through_label_follows_language(self):
-        """Подпись связи M2M переводится, имена модели и поля — нет.
+        """M2M 关系的标签会被翻译，模型和字段的名称则不会。
 
-        Django собирает ``verbose_name`` автосозданной модели из
-        переводимой строки «%(from)s-%(to)s relationship» и подставляет
-        имена модели и поля **сразу**, при импорте ``models.py``, когда
-        активна локаль по умолчанию. Полученная строка обычная, уже
-        русская, и ленивый перевод её не берёт — ключа в словаре нет.
-        Поэтому переводится только первое слово, а «dialog-user» остаётся:
-        это техническое имя, одинаковое на всех языках.
+        Django 从可翻译字符串“%(from)s-%(to)s relationship”
+        拼出自动创建模型的 ``verbose_name``，并在导入 ``models.py``、
+        默认 locale 生效之时 **立刻** 代入模型
+        和字段的名称。得到的字符串是普通字符串，已经是
+        俄语，惰性翻译不会作用于它——词典中没有键。
+        因此只翻译第一个词，而“dialog-user”保留不变：
+        它是技术名称，在所有语言下都相同。
         """
         through = m.Dialog._meta.get_field("participants").remote_field.through
         self.assertTrue(through._meta.auto_created)
@@ -739,11 +739,11 @@ class AdminLabelTest(TestCase):
                              "Relationships dialog-user")
 
     def test_through_str_is_readable(self):
-        """У автосозданной связи своего ``__str__`` нет — задаём читаемый.
+        """自动创建的关系没有自己的 ``__str__``——我们来定义一个可读的。
 
-        Штатно наследуется ``Model.__str__``, то есть «Dialog_participants
-        object (1)»: на странице подтверждения удаления пользователь видел
-        служебное имя класса вместо «какой это диалог и кто участник».
+        默认继承 ``Model.__str__``，即“Dialog_participants
+        object (1)”：在删除确认页面上，用户看到的是
+        类的服务名称，而不是“这是哪个对话、参与者是谁”。
         """
         through = m.Dialog._meta.get_field("participants").remote_field.through
         obj = through.objects.first()
@@ -752,7 +752,7 @@ class AdminLabelTest(TestCase):
         self.assertIn("—", text)
 
     def test_delete_page_shows_no_russian(self):
-        """Страница подтверждения удаления переведена целиком."""
+        """删除确认页面已完整翻译。"""
         allowed = demo_words() | CYR_ALLOWED_IN_ADMIN
         for code in ("zh", "en"):
             self.client.get("/lang/%s/?next=/admin/" % code)
@@ -762,14 +762,14 @@ class AdminLabelTest(TestCase):
                          - allowed)
             self.assertEqual(offenders, set(), f"{code}: {offenders}")
 
-    # ----------------------------------- подписи внутри ``__str__`` моделей
+    # ----------------------------------- 模型 ``__str__`` 内的标签
     def test_model_str_labels_follow_language(self):
-        """Подписи внутри ``__str__`` берутся из словаря.
+        """``__str__`` 内部的标签取自词典。
 
-        ``__str__`` панель вызывает вне ``translate_blocks`` — в списках,
-        хлебных крошках, заголовках и выпадающих списках, — поэтому жёстко
-        записанное русское слово («Профиль: ivanov») доходило до
-        пользователя в любом языке.
+        面板在 ``translate_blocks`` 之外调用 ``__str__``——列表、
+        面包屑、标题和下拉列表中——因此写死的
+        俄语词（“个人资料：ivanov”）在任何语言下都会
+        直达用户。
         """
         objects = [m.Profile.objects.first(), m.Tariff.objects.first(),
                    m.Dialog.objects.first(), m.Translation.objects.first()]
@@ -788,13 +788,13 @@ class AdminLabelTest(TestCase):
             self.assertIn("VAT", str(m.Tariff.objects.first()))
 
     def test_model_str_label_agrees_with_model_name(self):
-        """Подпись в ``__str__`` совпадает с названием модели на странице."""
+        """``__str__`` 中的标签与页面上模型的名称一致。"""
         with translation.override("zh-hans"):
             prefix = str(m.Profile.objects.first()).split(":")[0]
             self.assertEqual(prefix, str(m.Profile._meta.verbose_name).capitalize())
 
     def test_model_str_labels_keep_default_language(self):
-        """Русский — исходный язык подписей: он не меняется."""
+        """俄语是标签的源语言：它不发生改变。"""
         self.assertEqual(str(m.Profile.objects.first()), "Профиль: ivanov")
         self.assertIn("пошлина", str(m.Tariff.objects.first()))
 
@@ -804,13 +804,13 @@ class AdminLabelTest(TestCase):
         for word in ("编号", "状态", "金额", "签署日期"):
             self.assertIn(word, html, f"заголовок {word} не найден")
 
-    # ------------------------------------------------------- механизм
+    # ------------------------------------------------------- 机制
     def test_localize_is_idempotent(self):
         self.assertEqual(localize(), 0,
                          "повторная локализация обернула что-то ещё")
 
     def test_no_new_migrations(self):
-        """Обёртки подписей не должны порождать миграции."""
+        """标签的包装器不应产生迁移。"""
         try:
             call_command("makemigrations", "--check", "--dry-run", verbosity=0)
         except (SystemExit, CommandError):
@@ -818,7 +818,7 @@ class AdminLabelTest(TestCase):
                       "попали в миграции")
 
     def test_language_does_not_leak_between_requests(self):
-        """Локаль действует только на время запроса."""
+        """locale 仅在请求期间生效。"""
         before = translation.get_language()
         self.client.get("/admin/")
         self.assertEqual(translation.get_language(), before)
@@ -828,12 +828,12 @@ class AdminLabelTest(TestCase):
 
 
 class EnumLabelTest(TestCase):
-    """Перечисления моделей переведены, свободные данные — нет.
+    """模型的枚举值已翻译，自由数据则没有。
 
-    Раньше правило было «ячейки не переводим», и вместе с данными мимо
-    словаря проходили статусы, виды документов и единицы измерения.
-    Теперь значение переводится, если строка есть в словаре, поэтому
-    проверка идёт по ``choices`` моделей, а не по подписям блоков.
+    以前的规则是“单元格不翻译”，于是状态、单据类型和
+    计量单位与数据一起绕过了词典。
+    现在只要字符串在词典中，值就会被翻译，因此
+    检查按模型的 ``choices`` 进行，而不是按数据块的标签。
     """
 
     @classmethod
@@ -841,29 +841,29 @@ class EnumLabelTest(TestCase):
         call_command("seed_demo", verbosity=0)
 
     def test_every_choice_label_is_translated(self):
-        """Каждая подпись choices имеет перевод (кроме ENUM_SKIP)."""
+        """每个 choices 标签都有翻译（ENUM_SKIP 除外）。"""
         missing = untranslated_enums()
         self.assertEqual(missing, set(),
                          f"нет перевода для {len(missing)} перечислений: "
                          f"{sorted(missing)[:10]}")
 
     def test_skip_list_is_explicit(self):
-        """Непереводимые перечисления перечислены явно и их немного."""
+        """不可翻译的枚举已显式列出，且数量不多。"""
         self.assertTrue(ENUM_SKIP)
         self.assertEqual(untranslated_enums() & ENUM_SKIP, set())
-        # условия Инкотермс — международные сокращения, они не переводятся
+        # Incoterms 术语 — 国际通用缩写，不翻译
         for code in ("CIF", "DAP", "EXW", "FCA"):
             self.assertIn(code, ENUM_SKIP)
             self.assertNotIn(code, LABELS)
 
     def test_translate_cell_keeps_free_data(self):
-        """Свободные данные не подменяются словарём."""
+        """自由数据不会被词典替换。"""
         for value in ("Медтех-Рус", "ORD-2026-0001", "Москва, Пресненская наб., 10",
                       "10 800,00 CNY", "2026-03-15"):
             self.assertEqual(tr_value(value, "zh"), value)
 
     def test_translate_cell_translates_enum(self):
-        """Значение-перечисление переводится."""
+        """枚举类的值会被翻译。"""
         self.assertEqual(tr_value("Подписание", "zh"), "签署")
         self.assertEqual(tr_value("Подписание", "en"), "Signing")
         self.assertEqual(tr_value("Черновик", "zh"), "草稿")
@@ -871,16 +871,16 @@ class EnumLabelTest(TestCase):
         self.assertEqual(tr_value("нет", "en"), "No")
 
     def test_translate_cell_translates_joined_enum(self):
-        """Перечисления, склеенные в одну ячейку, переводятся по частям."""
+        """拼接到一个单元格里的枚举按部分翻译。"""
         cell = {"text": "Недовоз · Повреждение · Прочее"}
         out = translate_cell(cell, "zh")
         self.assertEqual(out["text"], "短装 · 破损 · 其他")
-        # свободный текст с тем же разделителем не ломается
+        # 含相同分隔符的自由文本不会被破坏
         cell = {"text": "Партия A · Партия B"}
         self.assertEqual(translate_cell(cell, "zh")["text"], "Партия A · Партия B")
 
     def test_translate_cell_translates_label_prefix(self):
-        """Помеченная подпись-префикс переводится, значение остаётся."""
+        """带标记的前缀标签被翻译，值保持不变。"""
         cell = {"text": "Заказ ORD-2026-0001", "label": "Заказ"}
         out = translate_cell(cell, "zh")
         self.assertEqual(out["text"], "订单 ORD-2026-0001")
@@ -888,7 +888,7 @@ class EnumLabelTest(TestCase):
         self.assertEqual(out["text"], "Order ORD-2026-0001")
 
     def test_translate_blocks_translates_cells(self):
-        """translate_blocks переводит и ячейки таблицы, и ключи полей."""
+        """translate_blocks 既翻译表格单元格，也翻译字段键。"""
         blocks = [{
             "kind": "table", "title": "Заказы", "empty": "Заказов нет",
             "columns": ["Статус"],
@@ -901,37 +901,37 @@ class EnumLabelTest(TestCase):
         out = translate_blocks(blocks, "zh")
         self.assertEqual(out[0]["columns"], ["状态"])
         self.assertEqual(out[0]["rows"][0][0]["text"], "签署")
-        self.assertEqual(out[0]["rows"][0][1]["text"], "Медтех-Рус")  # данные
+        self.assertEqual(out[0]["rows"][0][1]["text"], "Медтех-Рус")  # 数据
         self.assertEqual(out[1]["items"], [["状态", "草稿"]])
 
     def test_reference_values_are_translated(self):
-        """Значения справочников (страны, валюты, типы документов) переведены."""
+        """字典的值（国家、货币、单据类型）已翻译。"""
         missing = untranslated_reference_values()
         self.assertEqual(missing, set(),
                          f"нет перевода для {len(missing)} значений "
                          f"справочников: {sorted(missing)}")
 
     def test_dictionary_agrees_with_reference_name_zh(self):
-        """Словарь не расходится с ``name_zh`` самих справочников."""
+        """词典与字典自身的 ``name_zh`` 保持一致。"""
         bad = reference_mismatches()
         self.assertEqual(bad, [],
                          f"словарь расходится со справочником: {bad}")
 
     def test_translate_cell_handles_label_and_number(self):
-        """«Заказ #1» — переводится подпись, номер остаётся."""
+        """“订单 #1”——被翻译的是标签，编号保留。"""
         self.assertEqual(tr_value("Заказ #1", "zh"), "订单 #1")
         self.assertEqual(tr_value("Заказ #12", "en"), "Order #12")
-        # свободный текст с решёткой не ломается
+        # 含井号的自由文本不会被破坏
         self.assertEqual(tr_value("Партия A #3", "zh"), "Партия A #3")
 
     def test_translate_cell_handles_separator_joined_value(self):
-        """Склеенные значения переводятся по частям."""
+        """拼接起来的值按部分翻译。"""
         self.assertEqual(tr_value("Недовоз · Повреждение", "zh"), "短装 · 破损")
         self.assertEqual(tr_value("RU — Россия", "zh"), "RU — 俄罗斯")
         self.assertEqual(tr_value("Китай — Россия", "en"), "China — Russia")
 
     def test_kpi_value_is_translated(self):
-        """Значение плитки KPI тоже переводится, если оно перечисление."""
+        """KPI 卡片的值如果是枚举，也会被翻译。"""
         blocks = [{"kind": "kpi", "title": "Состояние",
                    "items": [{"label": "Состояние предприятия",
                               "value": "Активна", "hint": None, "tone": "ok"},
@@ -940,11 +940,11 @@ class EnumLabelTest(TestCase):
                               "tone": ""}]}]
         out = translate_blocks(blocks, "zh")
         self.assertEqual(out[0]["items"][0]["value"], "已启用")
-        # сумма — данные, остаётся как есть
+        # 金额 — 属于数据，保持原样
         self.assertEqual(out[0]["items"][1]["value"], "10 800,00 CNY")
 
     def test_pages_have_no_russian_enum_values(self):
-        """На страницах не осталось русских перечислений в ячейках."""
+        """页面单元格中不再残留俄语枚举值。"""
         offenders = {}
         for page in PAGES:
             provider = provider_for(page["name"])
@@ -970,7 +970,7 @@ class EnumLabelTest(TestCase):
 
 
 class LabelCoverageTest(TestCase):
-    """Каждая подпись, которую отдают провайдеры, есть в словаре."""
+    """提供器给出的每个标签都在词典中。"""
 
     @classmethod
     def setUpTestData(cls):

@@ -1,21 +1,21 @@
 # -*- coding: utf-8 -*-
-"""Регистрация моделей приложения portal в административной панели.
+"""在管理面板中注册 portal 应用的模型。
 
-Этап 3 («Модели приложения»). Приёмы демонстрации:
+阶段 3（「应用模型」）。演示手法：
 
-* ``list_display`` / ``list_filter`` / ``search_fields`` для типовых
-  перечней;
-* ``TabularInline`` для составных сущностей («документ — позиции»);
-* групповая регистрация однотипных справочников одним классом.
+* 用 ``list_display`` / ``list_filter`` / ``search_fields`` 展示典型
+  列表；
+* 用 ``TabularInline`` 展示复合实体（「文档 — 明细行」）；
+* 用一个类成组注册同类型的字典。
 
-Заголовки панели и подписи-``short_description`` обёрнуты в ``LazyRu``
-(``portal/admin_i18n.py``), поэтому следуют выбранному языку интерфейса
-вместе с названиями моделей и полей. ``site_title`` — имя продукта,
-оно одинаково на всех языках и не переводится.
+面板标题和 ``short_description`` 标签都包在 ``LazyRu``
+（``portal/admin_i18n.py``）里，因此会随模型和字段名称一起
+跟随所选的界面语言。``site_title`` 是产品名，
+在所有语言下都相同，不翻译。
 
-Сам сайт панели — ``portal.admin_site.TradeHubAdminSite``: он подключён
-через ``default_site`` в ``portal/apps.py`` и отвечает за бизнес-группировку
-главной страницы. Регистрация моделей ниже идёт в его реестр как обычно.
+面板站点本身是 ``portal.admin_site.TradeHubAdminSite``：它通过
+``portal/apps.py`` 中的 ``default_site`` 接入，负责主页的
+业务分组。下面的模型注册照常进入它的注册表。
 """
 
 from django.contrib import admin
@@ -25,13 +25,13 @@ from .admin_i18n import LazyRu
 
 admin.site.site_header = LazyRu("Администрирование TradeHub")
 admin.site.site_title = "TradeHub"
-#: Заголовок главной страницы. Раньше здесь был «Раздел предметной области»
-#: — формулировка из учебной программы, пользователю панели она ничего
-#: не объясняла. Перевод — в ``ADMIN_LABELS`` (``admin_labels.py``).
+#: 主页标题。以前这里是「领域板块」
+#: ——教学大纲中的措辞，对面板用户毫无
+#: 说明作用。译文在 ``ADMIN_LABELS`` (``admin_labels.py``) 中。
 admin.site.index_title = LazyRu("Обзор данных")
 
 
-# ------------------------------------------------------- справочники
+# ------------------------------------------------------- 字典
 
 @admin.register(m.Country, m.Currency, m.Uom, m.GoodCategory,
                 m.Industry, m.Tariff, m.SystemParam)
@@ -58,7 +58,7 @@ class TransportLaneAdmin(admin.ModelAdmin):
     search_fields = ("code", "name")
 
 
-# ------------------------------------------- организации и пользователи
+# ------------------------------------------- 组织与用户
 
 @admin.register(m.Profile)
 class ProfileAdmin(admin.ModelAdmin):
@@ -94,7 +94,7 @@ class CounterpartyAdmin(admin.ModelAdmin):
     search_fields = ("name", "contact_person")
 
 
-# -------------------------------------------------------- товары
+# -------------------------------------------------------- 商品
 
 class PackagingInline(admin.TabularInline):
     model = m.Packaging
@@ -126,7 +126,7 @@ class ProductImageAdmin(admin.ModelAdmin):
     list_display = ("good", "order", "is_main")
 
 
-# --------------------------------------------- преддоговорные сущности
+# --------------------------------------------- 合同前实体
 
 class RfqLineInline(admin.TabularInline):
     model = m.RfqLine
@@ -161,7 +161,7 @@ class QuoteVersionAdmin(admin.ModelAdmin):
                     "created_at")
 
 
-# --------------------------------------------------------- заказы
+# --------------------------------------------------------- 订单
 
 class OrderLineInline(admin.TabularInline):
     model = m.OrderLine
@@ -191,7 +191,7 @@ class OrderChangeAdmin(admin.ModelAdmin):
     list_filter = ("change_type",)
 
 
-# --------------------------------------------------------- логистика
+# --------------------------------------------------------- 物流
 
 @admin.register(m.Shipment)
 class ShipmentAdmin(admin.ModelAdmin):
@@ -219,7 +219,7 @@ class IncidentAdmin(admin.ModelAdmin):
     search_fields = ("number", "description")
 
 
-# ----------------------------------------- документы и соответствие
+# ----------------------------------------- 文档与合规
 
 @admin.register(m.DocType)
 class DocTypeAdmin(admin.ModelAdmin):
@@ -261,7 +261,7 @@ class DeadlineReminderAdmin(admin.ModelAdmin):
     list_filter = ("status", "target_kind")
 
 
-# --------------------------------------------------------- коммуникация
+# --------------------------------------------------------- 沟通
 
 @admin.register(m.Dialog)
 class DialogAdmin(admin.ModelAdmin):
@@ -289,7 +289,7 @@ class AttachmentAdmin(admin.ModelAdmin):
                     "created_at")
 
 
-# ------------------------------- задачи, уведомления, аналитика, счета
+# ------------------------------- 任务、通知、分析、账单
 
 @admin.register(m.Task)
 class TaskAdmin(admin.ModelAdmin):
@@ -359,7 +359,7 @@ class PaymentAdmin(admin.ModelAdmin):
                     "supplier_confirmed")
 
 
-# ------------------------------------------------------- системные
+# ------------------------------------------------------- 系统
 
 @admin.register(m.AuditLog)
 class AuditLogAdmin(admin.ModelAdmin):

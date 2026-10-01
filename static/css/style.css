@@ -1,6 +1,6 @@
 /* ============================================================
-   TradeHub — прототип интерфейса веб-приложения
-   Курсовой проект по дисциплине «Разработка веб-приложений на Python»
+   TradeHub — Web 应用界面原型
+   《Python Web 应用开发》课程设计
    ============================================================ */
 
 :root {
@@ -39,7 +39,7 @@ code {
   border-radius: 4px;
 }
 
-/* ---------- верхняя панель ---------- */
+/* ---------- 顶栏 ---------- */
 .topbar {
   display: flex; align-items: center; flex-wrap: wrap;
   gap: 16px 24px; padding: 12px 24px;
@@ -59,7 +59,7 @@ code {
 .topnav { display: flex; align-items: center; gap: 18px; font-size: 14px;
           margin-left: auto; }
 
-/* ---------- переключатель языка ---------- */
+/* ---------- 语言切换器 ---------- */
 .lang-switch {
   display: flex; align-items: center; gap: 2px; flex: none;
   border: 1px solid var(--line); border-radius: var(--radius);
@@ -75,7 +75,7 @@ code {
 }
 .lang-btn.is-active:hover { background: var(--primary); color: #fff; }
 
-/* ---------- макет ---------- */
+/* ---------- 布局 ---------- */
 .layout {
   display: grid; grid-template-columns: 280px minmax(0, 1fr);
   gap: 20px; padding: 20px 24px; align-items: start;
@@ -105,7 +105,7 @@ code {
 
 .content { min-width: 0; }
 
-/* ---------- страница ---------- */
+/* ---------- 页面 ---------- */
 .page {
   background: var(--surface); border: 1px solid var(--line);
   border-radius: var(--radius); padding: 28px 32px 36px;
@@ -129,7 +129,7 @@ code {
 .block h3 { margin: 0 0 6px; font-size: 15px; }
 .muted { color: var(--muted); }
 
-/* ---------- метаданные ---------- */
+/* ---------- 元数据 ---------- */
 .meta-grid {
   display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px 24px; margin: 20px 0 0; padding: 16px;
@@ -139,7 +139,7 @@ code {
 .meta-grid dd { margin: 2px 0 0; font-size: 14px; }
 .meta-grid .span-2 { grid-column: 1 / -1; }
 
-/* ---------- элементы ---------- */
+/* ---------- 元素 ---------- */
 .chip {
   display: inline-block; padding: 1px 7px; border-radius: 999px;
   background: var(--primary-soft); color: var(--primary);
@@ -170,7 +170,7 @@ code {
 .table th, .table td { padding: 8px 10px; border: 1px solid var(--line); text-align: left; }
 .table th { background: #f3f5f8; font-weight: 600; }
 
-/* ---------- блоки данных страниц ---------- */
+/* ---------- 页面数据块 ---------- */
 .table-wrap { overflow-x: auto; }
 .table-wrap .table { min-width: 640px; }
 .table td.mono, .table td .mono {
@@ -210,21 +210,42 @@ code {
 .stat-value { font-size: 26px; font-weight: 700; line-height: 1.2; }
 .stat-label { font-size: 13px; color: var(--muted); }
 
-/* ---------- область макета ---------- */
+/* ---------- 布局区域 ---------- */
 .block-placeholder { border: 1px dashed #cfd6e0; border-radius: var(--radius); padding: 18px; }
 .skeleton { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
 .sk-row { height: 12px; border-radius: 6px; background: linear-gradient(90deg, #eef1f5, #e3e8ef, #eef1f5); }
 .sk-40 { width: 40%; } .sk-60 { width: 60%; } .sk-80 { width: 80%; }
 
-/* ---------- подвал ---------- */
+/* ---------- 页脚 ---------- */
 .footer {
   padding: 18px 24px 26px; font-size: 12.5px; color: var(--muted);
   border-top: 1px solid var(--line); margin-top: 8px;
 }
 .footer p { margin: 2px 0; }
 
+/* ---------- 登录页 ---------- */
+.form-error {
+  margin: 0 0 14px; padding: 10px 14px; font-size: 14px;
+  color: var(--danger); background: var(--danger-soft);
+  border: 1px solid #e6c9c9; border-radius: var(--radius);
+}
+.login-card {
+  display: flex; flex-direction: column; gap: 14px; max-width: 380px;
+  padding: 20px; border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--surface); box-shadow: var(--shadow);
+}
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field label { font-size: 13px; color: var(--muted); }
+.field input {
+  padding: 8px 10px; font: inherit; color: var(--ink);
+  border: 1px solid var(--line); border-radius: var(--radius); background: #fff;
+}
+.field input:focus { outline: 2px solid var(--primary-soft); border-color: var(--primary); }
+.login-hint .table-wrap { max-width: 480px; margin-bottom: 8px; }
+
 @media (max-width: 900px) {
   .layout { grid-template-columns: 1fr; }
   .sidebar { position: static; max-height: none; }
   .meta-grid { grid-template-columns: 1fr; }
 }
+

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Проверка маршрутизации: сверка реестра страниц с фактическими маршрутами Django.
+"""路由检查：核对页面注册表与 Django 实际路由。
 
-Запуск:  python tools/check_routes.py
+运行：  python tools/check_routes.py
 """
 
 import os
@@ -19,7 +19,7 @@ from portal.pages import PAGES  # noqa: E402
 
 
 def walk(patterns, prefix=""):
-    """Обход дерева URL-шаблонов с накоплением префикса."""
+    """遍历 URL 模板树并累积前缀。"""
     from django.urls.resolvers import URLPattern, URLResolver
 
     for p in patterns:

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Контекстные процессоры приложения portal."""
+"""portal 应用的上下文处理器。"""
 
 from django.urls import NoReverseMatch, reverse
 
@@ -13,7 +13,7 @@ def _lang(request):
 
 
 def _resolve_url(page, lang=None):
-    """Возвращает фактический URL страницы (для страниц с параметром — pk=1)."""
+    """返回页面的实际 URL（带参数的页面为 pk=1）。"""
     try:
         if "<int:pk>" in page["path"]:
             url = reverse("portal:" + page["name"], kwargs={"pk": 1})
@@ -27,9 +27,9 @@ def _resolve_url(page, lang=None):
 
 
 def navigation(request):
-    """Структура боковой навигации, названия страниц и модулей — на текущем языке."""
+    """侧边导航结构、页面与模块名称——均为当前语言。"""
     lang = _lang(request)
-    #: второй язык названия (для двуязычной платформы показываем оба)
+    #: 名称的第二语言（双语平台两者都显示）
     alt = "ru" if lang == "zh" else "zh"
 
     urls = switch_urls(request)
@@ -44,9 +44,9 @@ def navigation(request):
                    "active": code == lang} for code in LANGS],
     }
 
-    # Административной панели навигация приложения не нужна — не строим её,
-    # чтобы не обращаться к urlconf 43 раза на каждый запрос /admin/.
-    # Переключатель языка там работает через тот же контекст выше.
+    # 管理面板不需要应用导航——因此不构建它，
+    # 以免每个 /admin/ 请求都要访问 urlconf 43 次。
+    # 那里的语言切换器通过上面的同一个上下文工作。
     if request.path.startswith("/admin/"):
         return context
 

@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Тесты страниц приложения: подключение представлений к моделям (этап 4).
+"""应用页面测试：视图与模型的连接（阶段 4）。
 
-Проверяются:
-* согласованность реестра провайдеров с реестром страниц;
-* отрисовка каждой подключённой страницы на демонстрационных данных;
-* наличие в разметке данных из моделей, а не заглушки;
-* поведение страниц с параметром pk (найденный и отсутствующий объект);
-* сохранение прототипов для страниц без провайдера.
+检查内容：
+* 提供器注册表与页面注册表的一致性；
+* 每个已连接页面在演示数据下的渲染；
+* 标记中包含来自模型的数据而非占位；
+* 带 pk 参数页面的行为（找到的对象与缺失的对象）；
+* 无提供器的页面保留原型。
 """
 from django.core.management import call_command
 from django.test import Client, TestCase
@@ -25,7 +25,7 @@ def url_of(name, pk=None):
 
 
 class RegistryConsistencyTest(TestCase):
-    """Провайдеры данных и реестр страниц не должны расходиться."""
+    """数据提供器与页面注册表不应出现不一致。"""
 
     def test_every_provider_is_a_known_page(self):
         unknown = set(PAGE_DATA) - {p["name"] for p in PAGES}
@@ -37,7 +37,7 @@ class RegistryConsistencyTest(TestCase):
         self.assertEqual(set(proto), PROTOTYPE_PAGES)
 
     def test_pages_with_pk_have_provider(self):
-        """Страницы с параметром pk обязаны быть подключены к моделям."""
+        """带 pk 参数的页面必须连接到模型。"""
         for page in PAGES:
             if page["params"] and page["name"] not in PROTOTYPE_PAGES:
                 self.assertIn(page["name"], PAGE_DATA,
@@ -45,7 +45,7 @@ class RegistryConsistencyTest(TestCase):
 
 
 class WiredPagesTest(TestCase):
-    """Каждая подключённая страница отдаёт данные из моделей."""
+    """每个已连接的页面都给出来自模型的数据。"""
 
     @classmethod
     def setUpTestData(cls):
@@ -69,10 +69,15 @@ class WiredPagesTest(TestCase):
         self.assertEqual(failures, [], "; ".join(failures))
 
     def test_prototype_pages_still_render(self):
-        for name in ["about", "help", "login", "register"]:
+        """“login” 已接入认证并渲染表单，而非样稿。"""
+        for name in ["about", "help", "register"]:
             resp = self.client.get(url_of(name))
             self.assertEqual(resp.status_code, 200, name)
             self.assertIn("Область макета", resp.content.decode())
+        resp = self.client.get(url_of("login"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('name="password"', resp.content.decode())
+        self.assertNotIn("Область макета", resp.content.decode())
 
     def test_wired_page_has_no_placeholder(self):
         resp = self.client.get(url_of("goods_list"))
@@ -81,7 +86,7 @@ class WiredPagesTest(TestCase):
 
 
 class DataContentTest(TestCase):
-    """В разметке — реальные значения из базы, а не макет."""
+    """标记中是来自数据库的真实值，而不是样稿。"""
 
     @classmethod
     def setUpTestData(cls):
@@ -154,7 +159,7 @@ class DataContentTest(TestCase):
 
 
 class DetailPageParamTest(TestCase):
-    """Страницы с pk: найденный объект — 200, отсутствующий — 404."""
+    """带 pk 的页面：找到对象时 200，缺失时 404。"""
 
     @classmethod
     def setUpTestData(cls):
@@ -179,19 +184,19 @@ class DetailPageParamTest(TestCase):
 
 
 class SidebarScrollTest(TestCase):
-    """Прокрутка боковой панели сохраняется между переходами.
+    """侧边面板的滚动位置在跳转之间保持不变。
 
-    Панель TradeHub и панель разделов админки прокручиваются отдельно от
-    страницы (``overflow: auto``), а браузер восстанавливает прокрутку
-    только у окна. Поэтому после перехода панель откатывалась к первому
-    пункту, и нужный модуль приходилось искать заново.
+        TradeHub 面板和后台的分区面板独立于页面滚动
+        （``overflow: auto``），而浏览器只恢复窗口本身的滚动位置。
+        因此跳转后面板会回滚到第一项，
+        所需模块只能重新查找。
 
-    Сама логика живёт в ``static/js/keep-scroll.js`` и проверяется
-    отдельными стендами: ``tools/keep_scroll_harness.js`` (разбор по
-    правилам браузера + логика на заглушках DOM) и ``tools/browser_probe.js``
-    (настоящий headless Chrome через CDP). Здесь проверяется подключение:
-    файл отдаётся статикой, скрипт подключён на обеих панелях и разметка
-    даёт ему за что зацепиться.
+        逻辑本身位于 ``static/js/keep-scroll.js``，由独立的
+        测试台验证：``tools/keep_scroll_harness.js``（按
+        浏览器规则解析 + 基于 DOM 占位的逻辑）和 ``tools/browser_probe.js``
+        （通过 CDP 驱动的真实 headless Chrome）。这里检查的是接入情况：
+        文件由静态资源提供，脚本挂接在两个面板上，且标记中
+        有它可依附的目标。
     """
 
     @classmethod
@@ -206,7 +211,7 @@ class SidebarScrollTest(TestCase):
         self.client = Client(HTTP_HOST="localhost")
 
     def test_script_file_is_served(self):
-        """Иначе в браузере был бы 404 и панель просто не заработала бы."""
+        """否则浏览器会得到 404，面板根本无法工作。"""
         from django.contrib.staticfiles import finders
         self.assertIsNotNone(finders.find("js/keep-scroll.js"))
 
@@ -216,22 +221,83 @@ class SidebarScrollTest(TestCase):
         self.assertIn("js/keep-scroll.js", html)
 
     def test_script_is_deferred(self):
-        """defer — чтобы разметка была готова к моменту выполнения."""
+        """defer——为了让标记在执行时已准备就绪。"""
         html = self.client.get("/orders/").content.decode()
         self.assertRegex(
             html, r"<script[^>]+js/keep-scroll\.js[^>]*\bdefer\b")
 
     def test_admin_nav_sidebar_gets_the_script(self):
-        """У панели админки нет data-атрибута — скрипт ищет её по id."""
+        """后台面板没有 data 属性——脚本按 id 查找它。"""
         self.client.force_login(self.root)
         html = self.client.get("/admin/portal/order/").content.decode()
         self.assertIn('id="nav-sidebar"', html)
         self.assertIn("js/keep-scroll.js", html)
 
     def test_admin_and_portal_use_different_panels(self):
-        """Панели не пересекаются: у TradeHub есть свой маркер."""
+        """两个面板互不重叠：TradeHub 有自己的标记。"""
         self.client.force_login(self.root)
         admin = self.client.get("/admin/portal/order/").content.decode()
         portal = self.client.get("/orders/").content.decode()
         self.assertNotIn('data-keep-scroll="sidebar"', admin)
         self.assertIn('data-keep-scroll="sidebar"', portal)
+
+
+class LoginViewTest(TestCase):
+    """登录页面：表单、身份认证以及返回原始页面。"""
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_demo", verbosity=0)
+
+    def setUp(self):
+        self.client = Client(HTTP_HOST="localhost")
+
+    def test_form_is_rendered(self):
+        html = self.client.get(url_of("login")).content.decode()
+        self.assertIn('name="username"', html)
+        self.assertIn('name="password"', html)
+        self.assertIn("ivanov", html)  # 演示账号的提示
+
+    def test_wrong_password_shows_error_and_does_not_log_in(self):
+        resp = self.client.post(url_of("login"),
+                                {"username": "ivanov", "password": "wrong"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("form-error", resp.content.decode())
+        self.assertFalse(resp.wsgi_request.user.is_authenticated)
+
+    def test_successful_login_redirects_to_dashboard(self):
+        resp = self.client.post(url_of("login"),
+                                {"username": "ivanov",
+                                 "password": "Waxx2003"})
+        self.assertRedirects(resp, "/dashboard/")
+        self.assertTrue(resp.wsgi_request.user.is_authenticated)
+
+    def test_next_parameter_is_honoured(self):
+        resp = self.client.post(url_of("login") + "?next=/orders/",
+                                {"username": "wang",
+                                 "password": "Waxx2003"})
+        self.assertRedirects(resp, "/orders/")
+
+    def test_foreign_next_is_rejected(self):
+        """不允许向外部站点进行开放重定向。"""
+        resp = self.client.post(
+            url_of("login") + "?next=https://evil.example/",
+            {"username": "ivanov", "password": "Waxx2003"})
+        self.assertRedirects(resp, "/dashboard/")
+
+    def test_authenticated_user_is_redirected_away(self):
+        """已登录的用户不会看到表单。"""
+        self.client.login(username="ivanov", password="Waxx2003")
+        resp = self.client.get(url_of("login"))
+        self.assertRedirects(resp, "/dashboard/")
+
+    def test_selected_language_survives_login(self):
+        """登录会重建会话；语言选择必须得以保留。"""
+        session = self.client.session
+        session["lang"] = "zh"
+        session.save()
+        self.client.post(url_of("login"),
+                         {"username": "ivanov",
+                          "password": "Waxx2003"})
+        resp = self.client.get("/")
+        self.assertEqual(resp.context["LANG"], "zh")

@@ -1,33 +1,33 @@
 # -*- coding: utf-8 -*-
-"""Реестр страниц приложения (единый источник данных).
+"""应用页面的注册表（单一数据源）。
 
-Единый реестр используется тремя потребителями:
-  * portal/urls.py   — построение маршрутов;
-  * portal/views.py  — прототипы представлений;
-  * docs/pages.{ru,zh,en}.md и документ «Описание страниц приложения» —
-    описание страниц.
+统一注册表供三方使用：
+  * portal/urls.py   — 构建路由；
+  * portal/views.py  — 视图原型；
+  * docs/pages.{ru,zh,en}.md 与文档《应用页面说明》 —
+    页面说明。
 
-Поля записи:
-    name      — имя маршрута (url name);
-    path      — шаблон URL (без ведущего слэша);
-    view      — имя функции-представления в portal/views.py;
-    module    — код модуля (M0..M11);
-    ru/zh/en  — название страницы на русском, китайском и английском;
-    access    — режим доступа: public | auth | role;
-    purpose_* — назначение страницы на языке *;
-    content_* — основное содержание страницы на языке *;
-    params    — параметры маршрута: dict {"ru":…, "zh":…, "en":…} или None.
+记录字段：
+    name      — 路由名（url name）；
+    path      — URL 模板（不含前导斜杠）；
+    view      — portal/views.py 中视图函数的名称；
+    module    — 模块代码（M0..M11）；
+    ru/zh/en  — 页面的俄语、中文和英语名称；
+    access    — 访问模式：public | auth | role；
+    purpose_* — 页面在语言 * 下的用途；
+    content_* — 页面在语言 * 下的主要内容；
+    params    — 路由参数：dict {"ru":…, "zh":…, "en":…} 或 None。
 
-Значения читаются через хелперы `title_of() / purpose_of() / content_of() /
-params_of() / module_name()`, а не по именам ключей напрямую — тогда
-добавление языка не потребует правок у потребителей.
+取值应通过辅助函数 `title_of() / purpose_of() / content_of() /
+params_of() / module_name()` 进行，而不是直接按键名访问 — 这样
+新增语言时使用方无需改动。
 
-Совместимость: исторические ключи без суффикса (`purpose`, `content`)
-сохранены как синонимы китайских вариантов — их используют шаблон
-`templates/portal/page.html` и генератор документа «Описание страниц
-приложения». Новый код должен применять хелперы.
+兼容性：不带后缀的历史键（`purpose`、`content`）
+保留为中文版本的别名 — 它们被模板
+`templates/portal/page.html` 和文档《应用页面说明》
+的生成器使用。新代码应使用辅助函数。
 
-Полнота переводов проверяется автоматически: `tools/check_i18n.py`.
+翻译完整性由 `tools/check_i18n.py` 自动检查。
 """
 
 LANGS = ("ru", "zh", "en")
@@ -913,9 +913,9 @@ PAGES = [
          params=None),
 ]
 
-# Исторические ключи без суффикса языка: их используют шаблон
-# templates/portal/page.html и генератор документа «Описание страниц
-# приложения». Новый код должен обращаться к полям через хелперы ниже.
+# 不带语言后缀的历史键：它们被模板
+# templates/portal/page.html 和文档《应用页面
+# 说明》的生成器使用。新代码应通过下方的辅助函数访问字段。
 for _p in PAGES:
     _p["purpose"] = _p["purpose_zh"]
     _p["content"] = _p["content_zh"]
@@ -930,33 +930,33 @@ def pages_of(module_code):
 
 
 def url_of(page):
-    """Полный URL страницы для документации (с ведущим слэшем)."""
+    """用于文档的页面完整 URL（含前导斜杠）。"""
     return "/" + page["path"]
 
 
-# ------------------------------------------------------- доступ по языку
+# ------------------------------------------------------- 按语言访问
 
 def module_name(module_code, lang="ru"):
-    """Название модуля на языке lang (ru|zh|en)."""
+    """模块在 lang 语言下的名称（ru|zh|en）。"""
     ru, zh, en = MODULE_BY_CODE[module_code]
     return {"ru": ru, "zh": zh, "en": en}[lang]
 
 
 def title_of(page, lang="ru"):
-    """Название страницы на языке lang."""
+    """页面在 lang 语言下的名称。"""
     return page[lang]
 
 
 def purpose_of(page, lang="ru"):
-    """Назначение страницы на языке lang."""
+    """页面在 lang 语言下的用途。"""
     return page["purpose_" + lang]
 
 
 def content_of(page, lang="ru"):
-    """Основное содержание страницы на языке lang."""
+    """页面在 lang 语言下的主要内容。"""
     return page["content_" + lang]
 
 
 def params_of(page, lang="ru"):
-    """Описание параметров маршрута на языке lang (или None)."""
+    """路由参数在 lang 语言下的说明（或 None）。"""
     return (page["params"] or {}).get(lang)

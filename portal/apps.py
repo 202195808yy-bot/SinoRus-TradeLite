@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
-"""Конфигурация приложения portal."""
+"""portal 应用配置。"""
 
 from django.apps import AppConfig
 from django.contrib.admin.apps import AdminConfig
 
-#: Класс сайта панели. ``django.contrib.admin.sites.site`` — ленивый
-#: объект: он читает ``default_site`` у конфигурации приложения admin
-#: при ПЕРВОМ обращении, а первое обращение происходит в
-#: ``AdminConfig.ready()`` -> ``autodiscover()``. Значит значение должно
-#: быть задано до ``django.setup()`` — то есть на уровне модуля, а не в
-#: ``ready()``: к тому моменту реестр уже наполнен моделями.
+#: 面板站点类。``django.contrib.admin.sites.site`` 是惰性的
+#: 对象：它从 admin 应用配置中读取 ``default_site``
+#: 是在第一次访问时，而第一次访问发生在
+#: ``AdminConfig.ready()`` -> ``autodiscover()``。因此该值必须
+#: 在 ``django.setup()`` 之前设置——也就是模块级别，而不是在
+#: ``ready()`` 里：到那时注册表已经填满了模型。
 AdminConfig.default_site = "portal.admin_site.TradeHubAdminSite"
 
 
@@ -19,18 +19,18 @@ class PortalConfig(AppConfig):
     verbose_name = "Портал трансграничной торговли"
 
     def ready(self):
-        """Включает перевод подписей административной панели.
+        """启用管理面板标签的翻译。
 
-        Подписи приложения, моделей и полей берутся панелью из метаданных
-        ORM и заданы по-русски. Здесь они оборачиваются в ленивый перевод
-        (``portal/admin_i18n.py``), поэтому панель переключается вместе с
-        остальным интерфейсом. Импорт внутри метода — на момент загрузки
-        ``apps.py`` реестр приложений ещё не готов.
+        应用、模型和字段的标签由面板取自 ORM 元数据，
+        并以俄语书写。这里将它们包装为惰性翻译
+        （``portal/admin_i18n.py``），因此面板会与其余界面一起切换。
+        在方法内部导入——因为加载 ``apps.py`` 时
+        应用注册表尚未就绪。
 
-        Здесь же включается обход для Python 3.14: Django 4.2 копирует
-        контекст шаблона через ``copy(super())``, а там это больше не
-        работает — падают все страницы панели, кроме главной
-        (``portal/compat.py``).
+        这里同时启用针对 Python 3.14 的绕过方案：Django 4.2 通过
+        ``copy(super())`` 复制模板上下文，而在 3.14 上这不再
+        有效——除主页外的所有面板页面都会崩溃
+        （``portal/compat.py``）。
         """
         from .admin_i18n import localize
         from .compat import patch_template_context

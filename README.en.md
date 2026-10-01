@@ -236,7 +236,7 @@ eight milestones → shipment → transport with waybill and track points →
 incident → document set → soon-expiring certificate → dialog with
 translation → task → statement, payment and reconciliation.
 
-Demo users, all with the password `tradehub-demo-2026`:
+Demo users, all with the password `Waxx2003`:
 
 | Login | Role | Access |
 |---|---|---|

@@ -1,19 +1,19 @@
 # -*- coding: utf-8 -*-
-"""Карточки показателей на главной странице панели.
+"""面板主页上的指标卡片。
 
-Штатная главная страница отвечает на вопрос «что здесь вообще есть»:
-список моделей. Названные цифры — «просроченных задач» или «платежей без
-подтверждения» — на таком списке не видны вовсе, и узнать их можно,
-только открыв нужную таблицу и проглядев её целиком. Карточки отвечают на
-другой вопрос: «что требует внимания прямо сейчас».
+默认的主页回答的问题是「这里到底有什么」：
+一份模型列表。像「逾期任务」或「未确认付款」这样的数字
+在这种列表里完全看不见，只有打开相应的表并把它整个
+通读一遍才能知道。卡片回答的是另一个问题：
+「现在有什么需要立刻注意」。
 
-Подписи идут через ``tr()`` (словарь ``portal/i18n.py``), как и подписи
-блоков на страницах портала: это новые строки интерфейса, а не метаданные
-ORM, поэтому ``langcheck.admin_labels()`` их не проверяет — за них
-отвечает общий тест полноты ``portal/tests_i18n.py``.
+标签通过 ``tr()``（字典 ``portal/i18n.py``）获取，和门户页面上
+区块的标签一样：这些是新的界面字符串，而不是 ORM
+元数据，因此 ``langcheck.admin_labels()`` 不检查它们——
+由完整性总测试 ``portal/tests_i18n.py`` 负责。
 
-Все подсчёты — обычные ``COUNT`` с индексом; при отсутствии таблицы
-(свежая база без миграций) карточка показывает «—», а не роняет страницу.
+所有统计都是带索引的普通 ``COUNT``；表不存在时
+（还没有迁移的全新数据库）卡片显示「—」，而不是让页面崩溃。
 """
 
 from django.db.models import Q
@@ -22,12 +22,12 @@ from django.utils import timezone
 from . import models as m
 from .i18n import active_lang, tr
 
-#: Сколько дней считать «скоро истекающим» для сертификатов и документов.
+#: 对证书和文档来说，多少天以内算「即将到期」。
 EXPIRY_HORIZON_DAYS = 30
 
 
 def _card(key, count, url, tone=""):
-    """Карточка показателя: подпись, значение и переход по клику."""
+    """指标卡片：标签、数值和点击跳转。"""
     return {
         "key": key,
         "title": tr(key, active_lang()),
@@ -38,7 +38,7 @@ def _card(key, count, url, tone=""):
 
 
 def _admin_url(model, **query):
-    """Адрес списка модели в панели с фильтром, заданным запросом."""
+    """面板中模型列表的地址，筛选条件由查询参数给定。"""
     from django.urls import NoReverseMatch, reverse
 
     meta = model._meta
@@ -55,15 +55,15 @@ def _admin_url(model, **query):
 
 
 def _count(qs):
-    """Число записей; отсутствие таблицы даёт None, а не исключение."""
+    """记录条数；表不存在时得到 None，而不是抛出异常。"""
     try:
         return qs.count()
-    except Exception:                        # noqa: BLE001 — БД может быть пуста
+    except Exception:                        # noqa: BLE001 ——数据库可能为空
         return None
 
 
 def overdue_tasks():
-    """Задачи со сроком, который уже прошёл, и работа ещё не закончена."""
+    """截止期限已过且工作尚未完成的任务。"""
     today = timezone.now().date()
     return _count(m.Task.objects.filter(
         status__in=(m.Task.Status.NEW, m.Task.Status.IN_PROGRESS),
@@ -71,17 +71,17 @@ def overdue_tasks():
 
 
 def unconfirmed_payments():
-    """Регистрации платежей, не подтверждённые обеими сторонами.
+    """未获双方确认的付款登记。
 
-    Подтверждение двустороннее: закупщиком и поставщиком. Плажёж, ждущий
-    вторую подпись, — это и есть незакрытый расчёт.
+    确认是双向的：由采购方和供应方分别进行。等待
+    第二个签认的付款，就是未结清的账目。
     """
     return _count(m.Payment.objects.filter(
         Q(buyer_confirmed=False) | Q(supplier_confirmed=False)))
 
 
 def expiring_certificates():
-    """Сертификаты, истекающие в ближайший месяц."""
+    """在最近一个月内到期的证书。"""
     today = timezone.now().date()
     horizon = today + timezone.timedelta(days=EXPIRY_HORIZON_DAYS)
     return _count(m.Certificate.objects.filter(
@@ -89,13 +89,13 @@ def expiring_certificates():
 
 
 def pending_invitations():
-    """Приглашения, отправленные и ещё не принятые."""
+    """已发送且尚未被接受的邀请。"""
     return _count(m.Invitation.objects.filter(
         status=m.Invitation.Status.PENDING))
 
 
 def critical_incidents():
-    """Инциденты высокой критичности, ещё не закрытые."""
+    """高严重度且尚未关闭的异常事件。"""
     return _count(m.Incident.objects.filter(
         severity=m.Incident.Severity.HIGH,
         status__in=(m.Incident.Status.REGISTERED,
@@ -103,14 +103,14 @@ def critical_incidents():
 
 
 def open_orders():
-    """Заказы в работе — не завершённые и не отменённые."""
+    """处理中的订单——未完成也未取消。"""
     return _count(m.Order.objects.exclude(status__in=(
         m.Order.Status.COMPLETED, m.Order.Status.CANCELED)))
 
 
-#: Карточки в порядке важности. Порядок задан явно: от «требует действия
-#: сейчас» к «полезно знать», чтобы взгляд сверху вниз шёл по убыванию
-#: срочности.
+#: 卡片按重要性排列。顺序是显式给出的：从「现在就需要
+#: 处理」到「值得了解」，让视线自上而下沿着紧迫
+#: 程度递减。
 CARDS = (
     dict(key="Задачи просроченные", value=overdue_tasks,
          url=lambda: _admin_url(m.Task, status__in="new,in_progress"),
@@ -130,13 +130,13 @@ CARDS = (
 
 
 def overview():
-    """Карточки главной страницы. Одна ошибка не должна ронять страницу."""
+    """主页的卡片。单个错误不应让整个页面崩溃。"""
     out = []
     for spec in CARDS:
         try:
             count = spec["value"]()
             url = spec["url"]()
-        except Exception:                    # noqa: BLE001 — панель должна жить
+        except Exception:                    # noqa: BLE001 ——面板必须保持可用
             count, url = None, None
         out.append(_card(spec["key"], count, url, spec["tone"]))
     return out

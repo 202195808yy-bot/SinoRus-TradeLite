@@ -1,26 +1,26 @@
 # -*- coding: utf-8 -*-
-"""Модели приложения курсового проекта «TradeHub».
+"""课程设计项目“TradeHub”的应用模型。
 
-Этап 3 («Модели приложения»). Сущности взяты из перечня предметной
-области этапа 1 (56 сущностей, 9 классов); 52 из них реализованы
-отдельными моделями, четыре — полями, словарями значений или
-встроенной моделью ``django.contrib.auth.models.User`` (таблица
-соответствия приведена в пояснительной записке):
+阶段 3（“应用模型”）。实体取自阶段 1 的领域
+清单（56 个实体、9 个类）；其中 52 个以独立模型实现，
+四个以字段、值字典或
+内置模型 ``django.contrib.auth.models.User`` 实现（对应表
+载于说明书）：
 
-* «Характеристика товара» — JSON-поле ``Good.attributes``;
-* «Роль» — словарь ``Membership.Role``;
-* «Файл (медиа)» — ``FileField`` моделей и модель ``Attachment``;
-* «Термин глоссария» — статический справочник интерфейса (этап 4).
+* “商品特性”——JSON 字段 ``Good.attributes``；
+* “角色”——字典 ``Membership.Role``；
+* “文件（媒体）”——各模型的 ``FileField`` 及模型 ``Attachment``；
+* “术语表条目”——界面的静态字典（阶段 4）。
 
-Соглашения:
+约定：
 
-* ``TimeStampedModel`` — общие поля временных отметок;
-* номера документов формируются в ``save()`` по шаблону
-  ``ПРЕФИКС-ГГГГ-NNNN``;
-* суммы и количества — ``DecimalField`` (без ошибок представлений);
-* ограничения целостности — ``UniqueConstraint`` и ``CheckConstraint``;
-* ``verbose_name`` на русском языке — источник для админ-панели и
-  перечня полей в пояснительной записке.
+* ``TimeStampedModel``——通用的时间戳字段；
+* 文档编号在 ``save()`` 中按模板
+  ``前缀-年份-序号`` 生成；
+* 金额与数量使用 ``DecimalField``（避免表示误差）；
+* 完整性约束——``UniqueConstraint`` 和 ``CheckConstraint``；
+* ``verbose_name`` 使用俄语——作为管理面板和
+  说明书中字段清单的来源。
 """
 
 from decimal import Decimal
@@ -37,11 +37,11 @@ from .i18n import label
 
 
 # ======================================================================
-# Вспомогательные классы и словари значений
+# 辅助类与值字典
 # ======================================================================
 
 class TimeStampedModel(models.Model):
-    """Абстрактная модель с отметками создания и изменения записи."""
+    """带记录创建与修改时间戳的抽象模型。"""
 
     created_at = models.DateTimeField("создано", auto_now_add=True)
     updated_at = models.DateTimeField("обновлено", auto_now=True)
@@ -51,7 +51,7 @@ class TimeStampedModel(models.Model):
 
 
 class DocNumberMixin:
-    """Генерация номера вида ``ПРЕФИКС-ГГГГ-NNNN`` при первом сохранении."""
+    """首次保存时生成 ``前缀-年份-序号`` 形式的编号。"""
 
     number_prefix = "DOC"
 
@@ -83,11 +83,11 @@ class TransportMode(models.TextChoices):
 
 
 # ======================================================================
-# Класс «С»: справочные и словарные сущности
+# «С» 类：参考与字典实体
 # ======================================================================
 
 class Currency(models.Model):
-    """Справочник валют."""
+    """货币字典。"""
 
     code = models.CharField("код", max_length=3, unique=True,
                             validators=[RegexValidator(r"^[A-Z]{3}$")])
@@ -107,7 +107,7 @@ class Currency(models.Model):
 
 
 class Country(models.Model):
-    """Справочник стран-участниц торговли."""
+    """贸易参与国字典。"""
 
     code2 = models.CharField("код ISO 3166-1 alpha-2", max_length=2,
                              unique=True)
@@ -129,7 +129,7 @@ class Country(models.Model):
 
 
 class Uom(models.Model):
-    """Единицы измерения товаров."""
+    """商品计量单位。"""
 
     class Kind(models.TextChoices):
         COUNT = "count", "Штуки"
@@ -152,7 +152,7 @@ class Uom(models.Model):
 
 
 class GoodCategory(models.Model):
-    """Иерархический справочник категорий товаров."""
+    """商品类别的层级字典。"""
 
     code = models.CharField("код", max_length=16, unique=True)
     parent = models.ForeignKey("self", verbose_name="родительская категория",
@@ -177,7 +177,7 @@ class GoodCategory(models.Model):
 
 
 class Industry(models.Model):
-    """Справочник отраслей промышленности."""
+    """工业行业字典。"""
 
     code = models.CharField("код", max_length=16, unique=True)
     name_ru = models.CharField("название (рус.)", max_length=96)
@@ -193,7 +193,7 @@ class Industry(models.Model):
 
 
 class BorderCrossing(models.Model):
-    """Таможенный пункт пропуска."""
+    """海关通关口岸。"""
 
     code = models.CharField("код", max_length=16, unique=True)
     name_ru = models.CharField("название (рус.)", max_length=96)
@@ -221,7 +221,7 @@ class BorderCrossing(models.Model):
 
 
 class TransportLane(models.Model):
-    """Логистический канал между двумя пунктами пропуска."""
+    """两个口岸之间的物流通道。"""
 
     code = models.CharField("код", max_length=16, unique=True)
     name = models.CharField("название", max_length=128)
@@ -256,7 +256,7 @@ class TransportLane(models.Model):
 
 
 class Tariff(models.Model):
-    """Таможенный тариф по коду ТН ВЭД."""
+    """按 ТН ВЭД（海关商品编码）编码的海关关税。"""
 
     hs_code = models.CharField("код ТН ВЭД", max_length=12, unique=True,
                                validators=[RegexValidator(r"^\d{4,12}$")])
@@ -277,14 +277,14 @@ class Tariff(models.Model):
 
 
 # ======================================================================
-# Класс «O»: организации и пользователи
+# «O» 类：组织与用户
 # ======================================================================
 
 class Profile(models.Model):
-    """Расширение учётной записи: настройки участника.
+    """账户扩展：参与者设置。
 
-    Атрибуты «язык интерфейса» и «телефон» сущности «Пользователь»
-    этапа 1, не входящие во встроенную модель ``User``.
+    阶段 1 实体“用户”的“界面语言”与“电话”属性，
+    未包含在内置模型 ``User`` 中。
     """
 
     class Language(models.TextChoices):
@@ -307,16 +307,16 @@ class Profile(models.Model):
         verbose_name_plural = "профили"
 
     def __str__(self):
-        # Подпись — само название модели: в документах эта сущность
-        # называется «Пользователь» («用户»), и панель подписывает ею же
-        # раздел и хлебные крошки. Отдельное слово для «Профиль» разошлось
-        # бы с ними на одной и той же странице.
+        # 标签就是模型名称本身：在文档中该实体
+        # 称为«Пользователь»（“用户”），面板用同一名称标注
+        # 分区和面包屑。若为«Профиль»单独用词，
+        # 就会在同一页面上与它们不一致。
         return (f"{self._meta.verbose_name.capitalize()}: "
                 f"{self.user.get_username()}")
 
 
 class Enterprise(TimeStampedModel):
-    """Участник торговли (российская или китайская сторона сделки)."""
+    """贸易参与方（交易的俄方或中方）。"""
 
     class Status(models.TextChoices):
         NEW = "new", "Новая"
@@ -353,7 +353,7 @@ class Enterprise(TimeStampedModel):
 
 
 class Membership(models.Model):
-    """Связь «пользователь — предприятие — роль»."""
+    """“用户——企业——角色”关联。"""
 
     class Role(models.TextChoices):
         BUYER = "buyer", "Закупщик"
@@ -392,7 +392,7 @@ class Membership(models.Model):
 
 
 class Invitation(models.Model):
-    """Приглашение нового участника в предприятие."""
+    """邀请新参与者加入企业。"""
 
     class Status(models.TextChoices):
         PENDING = "pending", "Отправлено"
@@ -431,7 +431,7 @@ class Invitation(models.Model):
 
 
 class Counterparty(models.Model):
-    """Проверенный партнёр (контрагент) предприятия."""
+    """企业已验证的合作伙伴（交易对手）。"""
 
     enterprise = models.ForeignKey(Enterprise,
                                    verbose_name="предприятие-инициатор",
@@ -465,14 +465,14 @@ class Counterparty(models.Model):
 
 
 # ======================================================================
-# Класс «T»: товарная номенклатура
+# «T» 类：商品目录
 # ======================================================================
 
 class Good(TimeStampedModel):
-    """Карточка товара.
+    """商品卡片。
 
-    Сущность «Характеристика товара» этапа 1 реализована JSON-полем
-    ``attributes``; упаковка — отдельной моделью :class:`Packaging`.
+    阶段 1 实体“商品特性”以 JSON 字段
+    ``attributes`` 实现；包装由独立模型 :class:`Packaging` 实现。
     """
 
     sku = models.CharField("артикул (SKU)", max_length=32, unique=True,
@@ -512,7 +512,7 @@ class Good(TimeStampedModel):
 
 
 class Packaging(models.Model):
-    """Вариант упаковки товара."""
+    """商品包装规格。"""
 
     class Kind(models.TextChoices):
         BOX = "box", "Коробка"
@@ -548,7 +548,7 @@ class Packaging(models.Model):
 
 
 class ProductImage(models.Model):
-    """Изображение товара в карточке."""
+    """商品卡片中的图片。"""
 
     good = models.ForeignKey(Good, verbose_name="товар",
                              on_delete=models.CASCADE,
@@ -572,11 +572,11 @@ class ProductImage(models.Model):
 
 
 # ======================================================================
-# Класс «R»: преддоговорные сущности
+# «R» 类：合同前实体
 # ======================================================================
 
 class Rfq(DocNumberMixin, TimeStampedModel):
-    """Запрос котировки (RFQ), который создаёт закупщик."""
+    """采购员创建的询价单（RFQ）。"""
 
     number_prefix = "RFQ"
 
@@ -621,7 +621,7 @@ class Rfq(DocNumberMixin, TimeStampedModel):
 
 
 class RfqLine(models.Model):
-    """Позиция запроса котировки."""
+    """询价单明细行。"""
 
     rfq = models.ForeignKey(Rfq, verbose_name="запрос",
                             on_delete=models.CASCADE, related_name="lines")
@@ -650,7 +650,7 @@ class RfqLine(models.Model):
 
 
 class Quote(DocNumberMixin, TimeStampedModel):
-    """Предложение поставщика на запрос котировки."""
+    """供应商对询价单的报价。"""
 
     number_prefix = "QUO"
 
@@ -702,7 +702,7 @@ class Quote(DocNumberMixin, TimeStampedModel):
 
 
 class QuoteLine(models.Model):
-    """Позиция предложения."""
+    """报价明细行。"""
 
     quote = models.ForeignKey(Quote, verbose_name="предложение",
                               on_delete=models.CASCADE,
@@ -735,7 +735,7 @@ class QuoteLine(models.Model):
 
 
 class QuoteVersion(models.Model):
-    """Версия предложения с фиксацией изменённых условий."""
+    """固定已变更条款的报价版本。"""
 
     quote = models.ForeignKey(Quote, verbose_name="предложение",
                               on_delete=models.CASCADE,
@@ -764,11 +764,11 @@ class QuoteVersion(models.Model):
 
 
 # ======================================================================
-# Класс «Z»: заказ и исполнение
+# «Z» 类：订单与执行
 # ======================================================================
 
 class Order(DocNumberMixin, TimeStampedModel):
-    """Подтверждённая сделка — ядро предметной области."""
+    """已确认的交易——领域的核心。"""
 
     number_prefix = "ORD"
 
@@ -821,7 +821,7 @@ class Order(DocNumberMixin, TimeStampedModel):
 
     @property
     def shipped_share(self):
-        """Доля отгруженных партий в общем количестве заказа."""
+        """已发货批次占订单总批次数的比例。"""
         total = sum(line.qty for line in self.lines.all())
         if not total:
             return Decimal("0")
@@ -830,7 +830,7 @@ class Order(DocNumberMixin, TimeStampedModel):
 
 
 class OrderLine(models.Model):
-    """Позиция заказа."""
+    """订单条目。"""
 
     order = models.ForeignKey(Order, verbose_name="заказ",
                               on_delete=models.CASCADE,
@@ -863,7 +863,7 @@ class OrderLine(models.Model):
 
 
 class OrderMilestone(models.Model):
-    """Этап (веха) исполнения заказа."""
+    """订单执行的阶段（里程碑）。"""
 
     class Kind(models.TextChoices):
         CONTRACT = "contract", "Подписание"
@@ -909,7 +909,7 @@ class OrderMilestone(models.Model):
 
 
 class OrderChange(models.Model):
-    """Зафиксированное изменение условий заказа."""
+    """已记录的订单条件变更。"""
 
     class ChangeType(models.TextChoices):
         SCOPE = "scope", "Состав"
@@ -945,11 +945,11 @@ class OrderChange(models.Model):
 
 
 # ======================================================================
-# Класс «Z»: логистика
+# «Z» 类：物流
 # ======================================================================
 
 class Shipment(DocNumberMixin, TimeStampedModel):
-    """Партия (отгрузка) в рамках заказа."""
+    """订单范围内的批次（发货）。"""
 
     number_prefix = "SHP"
 
@@ -978,7 +978,7 @@ class Shipment(DocNumberMixin, TimeStampedModel):
 
 
 class Transport(models.Model):
-    """Перевозка партии: перевозчик, канал, документы."""
+    """批次运输：承运方、渠道、单证。"""
 
     shipment = models.OneToOneField(
         Shipment, verbose_name="партия", on_delete=models.CASCADE,
@@ -1010,7 +1010,7 @@ class Transport(models.Model):
 
 
 class TrackPoint(models.Model):
-    """Точка маршрута перевозки (элемент отслеживания)."""
+    """运输路线节点（跟踪要素）。"""
 
     transport = models.ForeignKey(Transport, verbose_name="перевозка",
                                   on_delete=models.CASCADE,
@@ -1030,7 +1030,7 @@ class TrackPoint(models.Model):
 
 
 class Incident(DocNumberMixin, TimeStampedModel):
-    """Негативное отклонение по партии (инцидент)."""
+    """批次的负面偏差（异常事件）。"""
 
     number_prefix = "INC"
 
@@ -1082,11 +1082,11 @@ class Incident(DocNumberMixin, TimeStampedModel):
 
 
 # ======================================================================
-# Класс «D»: документооборот и соответствие
+# «D» 类：文档流转与合规
 # ======================================================================
 
 class DocType(models.Model):
-    """Справочник видов документов."""
+    """单证类型字典。"""
 
     class Stage(models.TextChoices):
         ORDER = "order", "Заказ"
@@ -1111,7 +1111,7 @@ class DocType(models.Model):
 
 
 class Document(TimeStampedModel):
-    """Документ сделки (инвойс, коносамент и т. п.)."""
+    """交易单证（发票、提单等）。"""
 
     class Status(models.TextChoices):
         DRAFT = "draft", "Черновик"
@@ -1154,7 +1154,7 @@ class Document(TimeStampedModel):
 
 
 class Certificate(TimeStampedModel):
-    """Разрешительный документ / сертификат."""
+    """许可文件 / 证书。"""
 
     class Kind(models.TextChoices):
         CONFORMITY = "conformity", "Соответствия"
@@ -1192,7 +1192,7 @@ class Certificate(TimeStampedModel):
 
 
 class DocRequirement(models.Model):
-    """Комплект документов: требование и отметка о наличии."""
+    """成套单证：要求与齐备标记。"""
 
     class Status(models.TextChoices):
         MISSING = "missing", "Отсутствует"
@@ -1228,7 +1228,7 @@ class DocRequirement(models.Model):
 
 
 class ComplianceCheck(models.Model):
-    """Результат самопроверки соответствия требованиям."""
+    """对照要求的合规自查结果。"""
 
     class Result(models.TextChoices):
         PASSED = "passed", "Пройдена"
@@ -1257,7 +1257,7 @@ class ComplianceCheck(models.Model):
 
 
 class DeadlineReminder(models.Model):
-    """Напоминание о сроке действия документа или сертификата."""
+    """单证或证书的有效期提醒。"""
 
     class Status(models.TextChoices):
         PENDING = "pending", "Ожидает"
@@ -1287,11 +1287,11 @@ class DeadlineReminder(models.Model):
 
 
 # ======================================================================
-# Класс «K»: двуязычная коммуникация
+# «K» 类：双语沟通
 # ======================================================================
 
 class Dialog(models.Model):
-    """Двуязычный диалог, привязанный к бизнес-объекту."""
+    """绑定到业务对象的双语对话。"""
 
     class SubjectKind(models.TextChoices):
         RFQ = "rfq", "Запрос"
@@ -1332,7 +1332,7 @@ class Dialog(models.Model):
 
 
 class Message(models.Model):
-    """Сообщение участника диалога."""
+    """对话参与者的消息。"""
 
     class Language(models.TextChoices):
         RU = "ru", "Русский"
@@ -1363,7 +1363,7 @@ class Message(models.Model):
 
 
 class Translation(models.Model):
-    """Машинный перевод сообщения."""
+    """消息的机器翻译。"""
 
     message = models.ForeignKey(Message, verbose_name="сообщение",
                                 on_delete=models.CASCADE,
@@ -1390,7 +1390,7 @@ class Translation(models.Model):
 
 
 class Attachment(models.Model):
-    """Файл, прикреплённый к сообщению, документу или инциденту."""
+    """附加到消息、单证或异常事件的文件。"""
 
     file = models.FileField("файл", upload_to="attach/%Y/%m")
     owner_kind = models.CharField("тип владельца", max_length=16)
@@ -1412,11 +1412,11 @@ class Attachment(models.Model):
 
 
 # ======================================================================
-# Класс «A»: задачи, уведомления, аналитика, расчёты
+# «A» 类：任务、通知、分析与计算
 # ======================================================================
 
 class Task(DocNumberMixin, TimeStampedModel):
-    """Задача, порождённая событием предметной области."""
+    """由领域事件产生的任务。"""
 
     number_prefix = "TSK"
 
@@ -1474,7 +1474,7 @@ class Task(DocNumberMixin, TimeStampedModel):
 
 
 class TaskReminder(models.Model):
-    """Напоминание о задаче по выбранному каналу."""
+    """通过所选渠道发送的任务提醒。"""
 
     class Channel(models.TextChoices):
         IN_APP = "in_app", "В приложении"
@@ -1500,7 +1500,7 @@ class TaskReminder(models.Model):
 
 
 class NotificationSetting(models.Model):
-    """Правило: по какому событию и в какой канал слать уведомление."""
+    """规则：按哪个事件、向哪个渠道发送通知。"""
 
     class Event(models.TextChoices):
         RFQ_ANSWERED = "rfq_answered", "Ответ на запрос"
@@ -1541,7 +1541,7 @@ class NotificationSetting(models.Model):
 
 
 class Notification(models.Model):
-    """Личное уведомление участника."""
+    """参与者的个人通知。"""
 
     recipient = models.ForeignKey(settings.AUTH_USER_MODEL,
                                   verbose_name="получатель",
@@ -1565,7 +1565,7 @@ class Notification(models.Model):
 
 
 class Metric(models.Model):
-    """Определение показателя аналитической панели."""
+    """分析面板指标的定义。"""
 
     class Period(models.TextChoices):
         DAY = "day", "Сутки"
@@ -1591,7 +1591,7 @@ class Metric(models.Model):
 
 
 class MetricSnapshot(models.Model):
-    """Значение показателя за период (для панелей и истории)."""
+    """指标在周期内的取值（用于面板和历史记录）。"""
 
     metric = models.ForeignKey(Metric, verbose_name="показатель",
                                on_delete=models.CASCADE,
@@ -1616,7 +1616,7 @@ class MetricSnapshot(models.Model):
 
 
 class ComplianceRisk(models.Model):
-    """Выявленный риск соответствия по заказу."""
+    """发现的订单合规风险。"""
 
     class Level(models.TextChoices):
         LOW = "low", "Низкий"
@@ -1648,7 +1648,7 @@ class ComplianceRisk(models.Model):
 
 
 class Statement(DocNumberMixin, TimeStampedModel):
-    """Счёт на оплату по заказу."""
+    """订单付款账单。"""
 
     number_prefix = "STM"
 
@@ -1691,7 +1691,7 @@ class Statement(DocNumberMixin, TimeStampedModel):
 
 
 class StatementLine(models.Model):
-    """Строка расчётного документа."""
+    """结算单据行项。"""
 
     class Source(models.TextChoices):
         ORDER = "order", "Заказ"
@@ -1728,7 +1728,7 @@ class StatementLine(models.Model):
 
 
 class Reconciliation(models.Model):
-    """Сверка расчётов с контрагентом за период."""
+    """周期内与交易对手的对账。"""
 
     class Status(models.TextChoices):
         NEW = "new", "Начата"
@@ -1765,7 +1765,7 @@ class Reconciliation(models.Model):
 
 
 class Payment(models.Model):
-    """Регистрация платежа по счёту (платежи вне платформы)."""
+    """账单付款登记（平台外付款）。"""
 
     statement = models.ForeignKey(Statement, verbose_name="счёт",
                                   on_delete=models.PROTECT,
@@ -1798,11 +1798,11 @@ class Payment(models.Model):
 
 
 # ======================================================================
-# Класс «S»: системные сущности
+# «S» 类：系统实体
 # ======================================================================
 
 class AuditLog(models.Model):
-    """Запись журнала действий (администрирование)."""
+    """操作日志记录（管理）。"""
 
     actor = models.ForeignKey(settings.AUTH_USER_MODEL,
                               verbose_name="субъект",
@@ -1829,7 +1829,7 @@ class AuditLog(models.Model):
 
 
 class SystemParam(models.Model):
-    """Параметр системы, редактируемый администратором."""
+    """由管理员编辑的系统参数。"""
 
     key = models.SlugField("ключ", max_length=64, unique=True)
     value = models.TextField("значение")

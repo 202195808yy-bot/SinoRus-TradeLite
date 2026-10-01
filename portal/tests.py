@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-"""Модельные тесты этапа 3.
+"""阶段 3 的模型测试。
 
-Проверяют: генерацию номеров, вычисляемые свойства и свойства-доли,
-ограничения целостности (``UniqueConstraint`` / ``CheckConstraint``),
-валидаторы, покрытие админ-панели и идемпотентность демо-данных.
+检查内容：编号生成、计算属性与占比属性、
+完整性约束（``UniqueConstraint`` / ``CheckConstraint``）、
+验证器、管理面板的覆盖情况以及演示数据的幂等性。
 """
 
 from datetime import timedelta
@@ -22,7 +22,7 @@ from portal import models as m
 
 
 def make_basic():
-    """Создать минимальный набор объектов для тестов."""
+    """创建测试所需的最小对象集。"""
     cny, _ = m.Currency.objects.get_or_create(
         code="CNY", defaults=dict(name_ru="Юань", name_zh="人民币",
                                   symbol="¥"))
@@ -69,7 +69,7 @@ class NumberingTest(TestCase):
         self.assertRegex(rfq.number, r"^RFQ-\d{4}-\d{4}$")
 
     def test_order_numbers_unique_across_models(self):
-        """Номера разных видов документов не пересекаются по префиксу."""
+        """不同类型单证的编号前缀互不重叠。"""
         rfq = self._rfq()
         quote = m.Quote.objects.create(
             rfq=rfq, supplier=self.supplier,
@@ -230,8 +230,8 @@ class ValidatorTest(TestCase):
 
 
 class AdminCoverageTest(TestCase):
-    """Каждая модель видна в администраторе: самостоятельно или как
-    инлайн составной сущности."""
+    """每个模型都在管理后台中可见：或独立显示，或作为
+    复合实体的内联。"""
 
     def _inline_models(self):
         result = set()
@@ -260,7 +260,7 @@ class AdminCoverageTest(TestCase):
 
 
 class SeedDemoTest(TestCase):
-    """Демо-сценарий строится целиком и идемпотентен."""
+    """演示场景整体构建且具有幂等性。"""
 
     def test_seed_and_idempotency(self):
         call_command("seed_demo", verbosity=0)
@@ -288,11 +288,11 @@ class SeedDemoTest(TestCase):
         self.assertIsNotNone(message.translations.first())
 
     def test_seed_sets_demo_passwords(self):
-        """Все демонстрационные пользователи входят с паролем из команды.
+        """所有演示用户都使用命令给出的密码登录。
 
-        Регрессия: раньше администратор создавался с пустым паролем, хотя
-        команда сообщала пароль в итоговой строке, и вход в /admin/ был
-        невозможен.
+        回归：以前管理员创建时密码为空，尽管
+        命令已在末行报告了密码，
+        却无法登录 /admin/。
         """
         from django.contrib.auth import get_user_model
 
@@ -307,7 +307,7 @@ class SeedDemoTest(TestCase):
                             f"{username}: пароль не совпадает с демо-паролем")
 
     def test_seed_admin_can_open_admin_site(self):
-        """Администратор имеет права персонала и доступ к /admin/."""
+        """管理员拥有员工权限并可访问 /admin/。"""
         from django.contrib.auth import get_user_model
         from django.test import Client
 
@@ -323,7 +323,7 @@ class SeedDemoTest(TestCase):
         self.assertEqual(client.get("/admin/").status_code, 200)
 
     def test_seed_repairs_empty_admin_password(self):
-        """Повторный запуск восстанавливает пароль администратора."""
+        """重复运行会恢复管理员密码。"""
         from django.contrib.auth import get_user_model
 
         from .management.commands.seed_demo import DEMO_PASSWORD

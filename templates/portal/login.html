@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block content %}
+<article class="page">
+
+  <header class="page-head">
+    <div>
+      <p class="page-module">
+        <span class="chip">{{ page.module }}</span>
+        {{ page.module_alt }}
+      </p>
+      <h1>{{ page.title }}</h1>
+    </div>
+  </header>
+
+  {% if form_error %}
+  <p class="form-error">{{ ui.login_error }}</p>
+  {% endif %}
+
+  <form class="login-card" method="post" action="{% url 'portal:login' %}">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ next }}">
+    <div class="field">
+      <label for="id_username">{{ ui.login_username }}</label>
+      <input id="id_username" name="username" type="text" value="{{ username }}"
+             autocomplete="username" autofocus required>
+    </div>
+    <div class="field">
+      <label for="id_password">{{ ui.login_password }}</label>
+      <input id="id_password" name="password" type="password"
+             autocomplete="current-password" required>
+    </div>
+    <button class="btn btn-primary" type="submit">{{ ui.btn_login }}</button>
+  </form>
+
+  <section class="block login-hint">
+    <h2>{{ ui.login_hint_title }}</h2>
+    <div class="table-wrap">
+      <table class="table">
+        <tbody>
+          {% for login, role in demo_users %}
+          <tr>
+            <td class="mono">{{ login }}</td>
+            <td>{{ role }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="muted">{{ ui.login_hint_password }} <code>Waxx2003</code></p>
+  </section>
+
+</article>
+{% endblock %}
