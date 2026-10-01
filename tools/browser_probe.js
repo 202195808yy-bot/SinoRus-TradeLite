@@ -232,8 +232,8 @@ async function main() {
         if (loggedIn) {
             console.log('Панель админки:');
             allOk = verdict('прокрутка панели разделов', await scrollScenario(cdp, {
-                from: `${BASE}/admin/portal/order/`,
-                to: `${BASE}/admin/portal/good/`,
+                from: `${BASE}/admin/trading/order/`,
+                to: `${BASE}/admin/catalog/good/`,
                 sel: '#nav-sidebar',
                 key: 'tradehub.scroll.admin-nav',
             })) && allOk;

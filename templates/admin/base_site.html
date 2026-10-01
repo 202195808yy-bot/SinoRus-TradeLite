@@ -4,7 +4,7 @@
 {% comment %}
 Переопределение заголовка панели: добавлен переключатель языка.
 Сам переключатель — в admin/_lang_switch.html, язык определяет
-portal.middleware.LanguageMiddleware (?lang= / /lang/<код>/ -> сессия).
+core.middleware.LanguageMiddleware (?lang= / /lang/<код>/ -> сессия).
 
 Наследуем admin/base.html, а не admin/base_site.html: каталог templates/
 проекта стоит в DIRS и имеет приоритет, поэтому «extends admin/base_site.html»

@@ -17,7 +17,7 @@ django.setup()
 from django.test import Client  # noqa: E402
 from django.test.utils import setup_test_environment  # noqa: E402
 
-from portal.pages import PAGES  # noqa: E402
+from core.pages import PAGES  # noqa: E402
 
 
 def main():

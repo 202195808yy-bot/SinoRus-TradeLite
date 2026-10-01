@@ -17,7 +17,7 @@
   <p class="form-error">{{ ui.login_error }}</p>
   {% endif %}
 
-  <form class="login-card" method="post" action="{% url 'portal:login' %}">
+  <form class="login-card" method="post" action="{% url 'accounts:login' %}">
     {% csrf_token %}
     <input type="hidden" name="next" value="{{ next }}">
     <div class="field">

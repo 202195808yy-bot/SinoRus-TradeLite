@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
-"""检查翻译字典（portal/labels.py、portal/i18n.py）的完整性。
+"""检查翻译字典（core/labels.py、core/i18n.py）的完整性。
 
 检查五项内容：
 
-* 数据块标签 — 遍历 portal/datasets.py 的全部提供器；
+* 数据块标签 — 遍历 <app>/datasets.py 的全部提供器；
 * 模型的 ``choices`` 枚举（状态、单证类型、计量
   单位）— 它们以值而非标签的形式进入单元格；
 * 字典的值 — 国家、货币、单证类型、行业、
   商品类别；
 * 管理后台的标签 — 应用、模型与字段的名称
-  （``portal/admin_labels.py``）；
+  （``core/admin_labels.py``）；
 * 自动创建的 M2M 关联模型的标签 — 它们不在 ``get_models()`` 中，
   但在删除确认页面上可见。
 
@@ -31,8 +31,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "tradehub.settings")
 django.setup()
 
-from portal.i18n import LANGS, UI, tr                      # noqa: E402
-from portal.langcheck import (ENUM_SKIP, admin_labels, admin_overrides,  # noqa: E402
+from core.i18n import LANGS, UI, tr                        # noqa: E402
+from core.langcheck import (ENUM_SKIP, admin_labels, admin_overrides,  # noqa: E402
                               enum_labels, reference_values, scan,
                               through_labels, untranslated_admin_labels,
                               untranslated_enums, untranslated_reference_values,
@@ -43,7 +43,7 @@ CYRILLIC = set("абвгдеёжзийклмнопрстуфхцчшщъыьэю
 
 def main():
     print("=" * 72)
-    print("ПОЛНОТА ПЕРЕВОДОВ ИНТЕРФЕЙСА (portal/labels.py, portal/i18n.py)")
+    print("ПОЛНОТА ПЕРЕВОДОВ ИНТЕРФЕЙСА (core/labels.py, core/i18n.py)")
     print("=" * 72)
 
     errors = []

@@ -80,15 +80,15 @@ The Django 4.2 branch officially supports Python 3.8–3.12. The project
 nevertheless runs on newer versions — up to 3.14: the incompatibility in
 template context copying is worked around in place, without touching
 `site-packages` and without changing `requirements.txt` (see
-`portal/compat.py`).
+`core/compat.py`).
 
 | Python | Django | State |
 |---|---|---|
 | 3.8–3.12 | 4.2.30 | stock behaviour, the shim stays off |
 | 3.13 | 4.2.30 | stock behaviour, the shim stays off |
-| 3.14 | 4.2.30 | works through `portal/compat.py` |
+| 3.14 | 4.2.30 | works through `core/compat.py` |
 
-The shim is enabled in `PortalConfig.ready()`, and only when the native
+The shim is enabled in `CoreConfig.ready()`, and only when the native
 implementation is genuinely broken: the check is by fact, not by version
 number — an empty context is copied. If copying succeeds, nothing is
 touched and Django's behaviour stays as shipped.
@@ -108,7 +108,7 @@ course_project/
 │   ├── pages.en.md            same in English (generated)
 │   ├── Предметная_область_и_сущности.docx      stage 1 document, ПЗ (32 pp., 56 entities, 9 classes)
 │   ├── Предметная_область_и_сущности_CN.docx   same in Chinese (26 pp.)
-│   ├── Описание_страниц_приложения.docx        stage 2 document, ПЗ (31 pp., 43 pages, 12 modules)
+│   ├── Описание_страниц_приложения.docx        stage 2 document, ПЗ (32 pp., 43 pages, 12 modules)
 │   ├── Описание_страниц_приложения_CN.docx     same in Chinese (27 pp.)
 │   ├── Модели_приложения.docx                  stage 3 document, ПЗ (29 pp., 52 models, 23 constraints)
 │   ├── Модели_приложения_CN.docx               same in Chinese (28 pp.)
@@ -131,39 +131,56 @@ course_project/
 │   ├── keep_scroll_harness.js checks keep-scroll.js without a browser (Node)
 │   └── browser_probe.js       checks pages in headless Chrome (CDP)
 ├── tradehub/                  project configuration
-│   ├── settings.py
-│   ├── urls.py                root URLconf
+│   ├── settings.py            INSTALLED_APPS = contrib + PROJECT_APPS
+│   ├── urls.py                root URLconf: include() per application
 │   ├── asgi.py
 │   └── wsgi.py
-├── portal/                    course project application
-│   ├── pages.py               SINGLE PAGE REGISTRY (43 entries)
-│   ├── urls.py                routes grouped by modules M0..M11
-│   ├── views.py               view prototypes
-│   ├── context_processors.py  module navigation and interface language
+├── core/                      kernel: shared machinery, no domain models
+│   ├── pages.py               SINGLE PAGE REGISTRY (43 entries) + page→app map
+│   ├── datasets.py            block constructors and the PAGE_DATA registry
+│   ├── views.py               generic page renderer, language switching
+│   ├── urls.py                kernel routes: home, about, help, language switch
+│   ├── registry.py            iteration over the project's apps and models
 │   ├── i18n.py                language switching: interface texts, helpers
 │   ├── labels.py              translation dictionary: labels, enumerations,
 │   │                          reference values (501 entries, ru→zh/en)
 │   ├── admin_labels.py        panel label dictionary (154 entries, ru→zh/en)
 │   ├── admin_i18n.py          lazy ORM label translation for /admin/
+│   ├── admin_site.py          the shared TradeHub administration site
+│   ├── admin_kpi.py           KPI summary on the panel home page
 │   ├── compat.py              Python 3.14 shim: template context copying
 │   │                          (Django 4.2 + Python 3.14)
 │   ├── middleware.py          language selection: ?lang= / /lang/<code>/ → session
-│   ├── langcheck.py           self-check: labels, choices, reference values,
-│   │                          panel labels
-│   ├── datasets.py            SINGLE PAGE DATA REGISTRY: context providers
-│   ├── models.py              application models: 52 models, 9 classes (stage 3)
-│   ├── admin.py               model registration, tabular inlines
-│   ├── tests.py               23 model tests: numbering, properties, constraints
-│   ├── tests_views.py         22 tests: pages, their data and sidebar scroll
-│   ├── tests_i18n.py          80 tests: switching, translation, purity
-│   ├── tests_compat.py        9 tests: context copying, Python 3.14 shim
+│   ├── context_processors.py  module navigation and interface language
+│   ├── langcheck.py           self-check: labels, choices, reference values
+│   ├── apps.py                CoreConfig.ready(): panel translation + 3.14 shim
+│   ├── models.py              shared: TimeStampedModel, DocNumberMixin, Incoterm, TransportMode
 │   ├── templatetags/          template filters (tr, fmt)
 │   ├── management/commands/seed_demo.py   idempotent demo data loader
+│   ├── tests/                 project tests (141)
+│   │   ├── test_models.py     23 model tests: numbering, properties, constraints
+│   │   ├── test_views.py      29 tests: pages, their data and sidebar scroll
+│   │   ├── test_i18n.py       80 tests: switching, translation, purity
+│   │   └── test_compat.py     9 tests: context copying, Python 3.14 shim
 │   └── migrations/
+├── accounts/                  organisations and users (M1)
+├── catalog/                   goods nomenclature and reference data (M2)
+├── trading/                   enquiries, quotations, orders (M3–M4)
+├── logistics/                 shipments, transport, incidents (M5)
+├── documents/                 document flow and compliance (M6)
+├── messaging/                 bilingual communication (M7)
+├── tasks/                     tasks and reminders (M8)
+├── analytics/                 metrics, risks, dashboard (M9)
+├── billing/                   statements, payments, reconciliation (M10)
+├── system/                    audit and system parameters (M11)
+│   ↑ every domain app: models.py, views.py, urls.py, datasets.py,
+│     admin.py, apps.py, migrations/
 ├── templates/
 │   ├── base.html              base template
 │   ├── admin/
 │   │   ├── base_site.html     panel header: language switcher
+│   │   ├── app_list.html      panel home: per-application summary
+│   │   ├── index.html         panel home
 │   │   └── _lang_switch.html  the switcher itself (RU · 中文 · EN)
 │   └── portal/
 │       ├── index.html         landing page
@@ -177,12 +194,50 @@ course_project/
 
 ## Single page registry
 
-The key architectural decision is the `portal/pages.py` module. It holds the
+## Application structure
+
+The project is split along the bounded contexts of the subject area: besides
+the `core` kernel it contains ten domain applications. The kernel holds no
+subject-area models — it gathers the shared machinery (page registry, data
+registry, interface dictionaries, language switching, panel configuration).
+
+| Application | Purpose | Modules | Models |
+|---|---|---|---|
+| `core` | kernel: shared machinery, registries, translations | — | 0 |
+| `accounts` | organisations and users | M1 | 5 |
+| `catalog` | goods nomenclature and reference data | M2 | 8 |
+| `trading` | enquiries, quotations, orders | M3–M4 | 9 |
+| `logistics` | shipments, transport, incidents | M5 | 7 |
+| `documents` | document flow and compliance | M6 | 6 |
+| `messaging` | bilingual communication | M7 | 4 |
+| `tasks` | tasks and reminders | M8 | 4 |
+| `analytics` | metrics, risks, dashboard | M9 | 3 |
+| `billing` | statements, payments, reconciliation | M10 | 4 |
+| `system` | audit and system parameters | M11 | 2 |
+
+Every domain application is self-contained: it declares its own models,
+views, routes with a separate namespace and a data registry
+(`<app>/datasets.py`), and its only link to the kernel is the import of the
+shared block constructors. Dependencies between applications are
+unidirectional: `catalog` and `accounts` form the bottom layer, `trading`
+depends on them, `logistics` on `trading`, `documents` on `catalog`,
+`logistics` and `trading`, `analytics` on `trading`, and `billing` on
+`catalog` and `trading`; there are no cycles.
+
+**The split required no data migration.** Database table names were left
+unchanged: every model pins `db_table = "portal_<name>"` explicitly, so the
+physical tables, index names and database contents stayed the same. Routes
+were preserved as well — only the namespaces changed (`portal:` →
+`<application>:`), while page addresses remained identical.
+
+## Single page registry
+
+The key architectural decision is the `core/pages.py` module. It holds the
 single source of truth about every application page and serves three
 consumers:
 
-* `portal/urls.py` — route construction;
-* `portal/views.py` — view prototypes;
+* `<app>/urls.py` — route construction (each with its own namespace);
+* `core/views.py` and `<app>/views.py` — views;
 * `docs/pages.{ru,zh,en}.md` and the “Application page descriptions”
   document — page descriptions.
 
@@ -195,7 +250,7 @@ dicts keyed by language. Values are read through the helpers `title_of()`,
 `purpose_of()`, `content_of()`, `params_of()` and `module_name()`, so adding
 a fourth language requires no changes in the consumers.
 
-The stage 2 document is `docs/Описание_страниц_приложения.docx` (ПЗ, 31
+The stage 2 document is `docs/Описание_страниц_приложения.docx` (ПЗ, 32
 pp., 43 pages, 12 modules) with a Chinese counterpart
 `docs/Описание_страниц_приложения_CN.docx` (27 pp.). The page tables are
 built directly from the registry, so the list in the document and in the
@@ -203,7 +258,7 @@ code agree by construction.
 
 ## Application models
 
-Stage 3 implements the data models in `portal/models.py`: 52 Django models
+Stage 3 implements the data models in the domain applications (`<app>/models.py`): 52 Django models
 cover the 56 domain entities (9 classes). Four entities are implemented not
 as tables but as fields and value dictionaries: product characteristics as
 the `Good.attributes` JSON field, the role as the `Membership.Role`
@@ -212,7 +267,7 @@ a glossary term as a static interface reference.
 
 | Item | Count | Location |
 |---|---|---|
-| Models | 52 | `portal/models.py` |
+| Models | 52 | `<app>/models.py` |
 | Fields (excluding PK) | 394 | same |
 | Integrity constraints | 23 | model `Meta.constraints` |
 | Application-level indexes | 11 | model `Meta.indexes` |
@@ -227,7 +282,7 @@ Shared mechanisms: the `TimeStampedModel` abstract model with time stamps,
 ```bash
 python manage.py migrate           # create 53 tables
 python manage.py seed_demo         # demo deal chain
-python manage.py test portal       # 134 tests: models, pages, languages
+python manage.py test core.tests       # 141 tests: models, pages, languages, compatibility
 ```
 
 The `seed_demo` command is idempotent (a second run creates no duplicates)
@@ -257,7 +312,7 @@ the code.
 ## Application page templates
 
 Stage 4 wires the pages to the models. The single data registry
-`portal/datasets.py` maps every page to a context provider function
+`core/datasets.py` (block constructors and the aggregate registry) and the `<app>/datasets.py` registries map every page to a context provider function
 `provider(request, **kw)` that returns a set of blocks (`kpi` — metrics,
 `table` — a table with link and badge cells, `fields` — a field card,
 `list` — a short list). The universal template
@@ -266,9 +321,9 @@ serves the landing page, the lists and the cards.
 
 | Item | Count | Location |
 |---|---|---|
-| Pages backed by models | 37 | `portal/datasets.py` |
+| Pages backed by models | 37 | `<app>/datasets.py` |
 | Prototype pages (no data) | 6 | `about`, `help`, `login`, `register`, `logout`, `admin_index` |
-| Total pages | 43 | `portal/pages.py` |
+| Total pages | 43 | `core/pages.py` |
 
 The providers issue real ORM queries: lists use
 `select_related`/`prefetch_related` and cap the output (`LIST_LIMIT = 50`
@@ -288,7 +343,7 @@ from the code.
 
 ```bash
 python tools/check_data.py     # 37 pages with data, 6 prototypes
-python manage.py test portal   # 134 tests: models, pages, languages
+python manage.py test core.tests   # 141 tests: models, pages, languages, compatibility
 ```
 
 ## Interface language
@@ -302,18 +357,18 @@ second set of translations that could drift apart from the code.
 
 | Layer | Translation source | Volume |
 |---|---|---|
-| Page titles, purpose, content, route parameters | `portal/pages.py` registry (`ru`/`zh`/`en` fields) | 43 pages |
-| Module names M0..M11 | `portal/pages.py` registry | 12 modules |
-| Interface texts: navigation, buttons, section headings, footer | `portal/i18n.py`, the `UI` dictionary | 51 keys |
-| Data block labels: table and column headings, KPI captions, field keys, empty states | `portal/labels.py`, the `LABELS` dictionary | 385 strings |
-| Model enumerations: statuses, document kinds, units of measure, roles, categories, yes/no | `portal/labels.py` (checked against model `choices`) | 108 of 117 |
-| Reference values: countries, currencies, units, document types, industries, goods categories | `portal/labels.py` (checked against the reference's `name_zh`) | 12 |
-| Administration panel labels: app, model and field names, `help_text`, `choices` labels, panel headings | `portal/admin_labels.py` (checked against the ORM metadata) | 286 |
-| Labels the panel keeps in the database: permissions (`Permission.name`) and log messages (`LogEntry.change_message`) | `portal/admin_i18n.py` — rebuilt from the `codename` and from the translated field names | 2 mechanisms |
-| Labels inside model `__str__` (“Профиль: …”, “пошлина”, “НДС”, “Диалог: …”, “Перевод #…”) | `portal/labels.py`, through `i18n.label()` | 3 new words |
-| Labels of the auto-created M2M relationship models (“Связь dialog-user”), shown on the delete confirmation page | `portal/admin_labels.py`, through `admin_i18n.tr_through_label()` | 2 words × 4 models |
+| Page titles, purpose, content, route parameters | `core/pages.py` registry (`ru`/`zh`/`en` fields) | 43 pages |
+| Module names M0..M11 | `core/pages.py` registry | 12 modules |
+| Interface texts: navigation, buttons, section headings, footer | `core/i18n.py`, the `UI` dictionary | 51 keys |
+| Data block labels: table and column headings, KPI captions, field keys, empty states | `core/labels.py`, the `LABELS` dictionary | 385 strings |
+| Model enumerations: statuses, document kinds, units of measure, roles, categories, yes/no | `core/labels.py` (checked against model `choices`) | 108 of 117 |
+| Reference values: countries, currencies, units, document types, industries, goods categories | `core/labels.py` (checked against the reference's `name_zh`) | 12 |
+| Administration panel labels: application, model and field names, `help_text`, `choices` labels, panel headings | `core/admin_labels.py` (checked against the ORM metadata) | 297 |
+| Labels the panel keeps in the database: permissions (`Permission.name`) and log messages (`LogEntry.change_message`) | `core/admin_i18n.py` — rebuilt from the `codename` and from the translated field names | 2 mechanisms |
+| Labels inside model `__str__` (“Профиль: …”, “пошлина”, “НДС”, “Диалог: …”, “Перевод #…”) | `core/labels.py`, through `i18n.label()` | 3 new words |
+| Labels of the auto-created M2M relationship models (“Связь dialog-user”), shown on the delete confirmation page | `core/admin_labels.py`, through `admin_i18n.tr_through_label()` | 2 words × 4 models |
 
-The language is chosen by `portal.middleware.LanguageMiddleware`: the
+The language is chosen by `core.middleware.LanguageMiddleware`: the
 `?lang=` parameter is stored in the session, so subsequent navigation keeps
 the chosen language.
 
@@ -350,8 +405,8 @@ dedicated route:
 
 A dedicated route is required because Django treats the `?lang=` parameter
 in the panel's list views as an unknown filter and answers with a spurious
-redirect (`/admin/portal/order/?lang=zh` → `302` to `?e=1`). The
-`portal:set_language` route keeps the return address in `next`, accepts
+redirect (`/admin/trading/order/?lang=zh` → `302` to `?e=1`). The
+`core:set_language` route keeps the return address in `next`, accepts
 own paths only (open-redirect protection) and remains compatible with the
 `?lang=` parameter in application URLs. Logging out also preserves the
 chosen language: `auth_logout()` flushes the whole session, so the logout
@@ -362,15 +417,15 @@ the panel reads model and field names from the models themselves
 (`verbose_name`, `help_text`, `choices` labels). Django's built-in
 translations do not cover them, so the panel shell stayed Russian even with
 Chinese selected. The labels are wrapped in a lazy translation
-(`portal/admin_i18n.py`): the string is translated when it is rendered, once
+(`core/admin_i18n.py`): the string is translated when it is rendered, once
 the language is known.
 
 | Wrapper | Wraps | Why |
 |---|---|---|
 | `LazyRu` | `verbose_name`, `help_text`, panel headings | not a `str` subclass: `django.utils.text.capfirst()` tests `isinstance(x, str)` and a subclass would return the Russian text unchanged |
-| `LazyChoice` | `choices` labels | a `str` subclass, because `portal/datasets.py` joins them and migrations serialize them; only `str()` is translated |
+| `LazyChoice` | `choices` labels | a `str` subclass, because `<app>/datasets.py` joins them and migrations serialize them; only `str()` is translated |
 
-The wrappers are applied by `PortalConfig.ready()` walking the models, so
+The wrappers are applied by `CoreConfig.ready()` walking the models, so
 new models and fields are translated automatically. Migrations do not
 change: `makemigrations` compares `Options.original_attrs`, not the wrapped
 values. Labels are looked up first in `ADMIN_LABELS`, then — case
@@ -517,7 +572,7 @@ python tools/check_data.py      # pages wired to models
 python tools/check_lang.py      # interface translation completeness
 python tools/smoke_test.py      # smoke test: request every page
 python tools/gen_docs.py        # refresh docs/pages.{ru,zh,en}.md
-python manage.py test portal    # 134 tests: models, pages, languages
+python manage.py test core.tests    # 141 tests: models, pages, languages, compatibility
 ```
 
 Separately — the sidebar scroll preservation logic. The first check parses
@@ -563,21 +618,21 @@ copy the context), while **every navigation** — to a model list, to a detail
 page, to a user — responds with error 500. In the test suite 40 of 120 tests
 failed — all of those that render a template with context copying.
 
-The workaround is `portal/compat.py`:
+The workaround is `core/compat.py`:
 
 1. **checked by fact, not by version number** — an empty context is copied;
    if the copy succeeds, nothing is touched;
 2. **substitution only when broken** — `BaseContext.__copy__` is replaced
    with an implementation without `super()`, repeating the original
    semantics (new object, same `__dict__`, a separate `dicts` list);
-3. **idempotent** — the `_portal_compat` marker prevents a second
+3. **idempotent** — the `_core_compat` marker prevents a second
    substitution;
-4. enabled in `PortalConfig.ready()`, next to the panel label translation.
+4. enabled in `CoreConfig.ready()`, next to the panel label translation.
 
 `site-packages` is not modified, no dependency is added, and
 `requirements.txt` still pins `Django==4.2.30`. On Python 3.12 and 3.13 the
 shim does not engage at all — Django's behaviour stays as shipped. It is
-covered by `portal/tests_compat.py`.
+covered by `core/tests/test_compat.py`.
 
 ## Domain boundaries
 

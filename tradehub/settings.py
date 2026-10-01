@@ -14,7 +14,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # --- 安全---------------------------------------------------------
 # 注意：该密钥仅用于教学开发。
-SECRET_KEY = 'django-insecure-t$kr*a26xh2%=z1sin=@%l-q=9qqagn52%t_!wte2n3eyh_03z'
+SECRET_KEY = 'django-insecure-t$kr*a26xh2%=z1sin=@%l-q-9qqagn52%t_!wte2n3eyh_03z'
 
 DEBUG = True
 
@@ -22,6 +22,23 @@ ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
 
 
 # --- 应用-----------------------------------------------------------
+#: 课程设计自己的应用。按限界上下文拆分：一个应用 = 一个业务领域，
+#: 自带 models / admin / views / urls / datasets / migrations。
+#: 顺序有意义——它同时决定管理后台的分组顺序与迁移的依赖顺序。
+PROJECT_APPS = [
+    'core',        # 平台内核：共享基类、标签字典、语言机制、页面注册表
+    'accounts',    # 企业与账号
+    'catalog',     # 商品与参考字典
+    'trading',     # 询价、报价与订单
+    'logistics',   # 物流与口岸
+    'documents',   # 单证与合规
+    'messaging',   # 双语沟通
+    'tasks',       # 任务与提醒
+    'analytics',   # 数据看板
+    'billing',     # 结算与对账
+    'system',      # 系统管理
+]
+
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -30,8 +47,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     # 课程设计的应用
-    'portal.apps.PortalConfig',
-]
+] + PROJECT_APPS
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -40,7 +56,7 @@ MIDDLEWARE = [
     # 界面语言的自定义选择（?lang= -> 会话）。
     # 置于 SessionMiddleware 之后（会访问 request.session）
     # 以及 LocaleMiddleware 之后（否则它会覆盖所选语言区域）。
-    'portal.middleware.LanguageMiddleware',
+    'core.middleware.LanguageMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -64,7 +80,7 @@ TEMPLATES = [
                 # LANGUAGE_CODE / LANGUAGE_BIDI — 管理后台需要
                 # 用于 lang 属性和文本方向。
                 'django.template.context_processors.i18n',
-                'portal.context_processors.navigation',
+                'core.context_processors.navigation',
             ],
         },
     },
@@ -103,16 +119,17 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-LOGIN_URL = 'portal:login'
-LOGIN_REDIRECT_URL = 'portal:dashboard'
-LOGOUT_REDIRECT_URL = 'portal:index'
+# 路由名带应用命名空间（拆分后每个应用有自己的 app_name）。
+LOGIN_URL = 'accounts:login'
+LOGIN_REDIRECT_URL = 'analytics:dashboard'
+LOGOUT_REDIRECT_URL = 'core:index'
 
 
 # --- 国际化--------------------------------------------------
 # 界面语言切换采用自有机制
-# (portal/i18n.py + portal/labels.py + portal.middleware.LanguageMiddleware):
-# 翻译来源为项目数据（页面注册表 portal/pages.py 与
-# 标签字典 portal/labels.py），而非 .po/.mo 文件。
+# (core/i18n.py + core/labels.py + core.middleware.LanguageMiddleware):
+# 翻译来源为项目数据（页面注册表 core/pages.py 与
+# 标签字典 core/labels.py），而非 .po/.mo 文件。
 #
 # 下面的 LANGUAGES 列表是管理后台所需的：其翻译包含
 # 在 Django 发行包中，LanguageMiddleware 会激活对应的语言区域，

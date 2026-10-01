@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""检查页面注册表 portal/pages.py 翻译的完整性。
+"""检查页面注册表 core/pages.py 翻译的完整性。
 
 检查每页的名称、用途与内容是否按 `pages.LANGS` 中的
 所有语言填写，以及带参数的页面是否填写了
@@ -22,7 +22,7 @@ sys.path.insert(0, ROOT)
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "tradehub.settings")
 django.setup()
 
-from portal.pages import LANGS, MODULES, PAGES  # noqa: E402
+from core.pages import LANGS, MODULES, PAGES  # noqa: E402
 
 CJK = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
 CYRILLIC = re.compile(r"[\u0400-\u04ff]")

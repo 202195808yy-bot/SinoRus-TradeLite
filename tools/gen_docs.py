@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""从页面注册表 portal/pages.py 生成 docs/pages.{ru,zh,en}.md。
+"""从页面注册表 core/pages.py 生成 docs/pages.{ru,zh,en}.md。
 
 单一数据源保证仓库中的页面清单与《应用页面说明》
 文档中的清单保持一致。
@@ -17,7 +17,8 @@ sys.path.insert(0, ROOT)
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "tradehub.settings")
 django.setup()
 
-from portal.pages import (  # noqa: E402
+from core.pages import (  # noqa: E402
+    app_of,
     LANGS, MODULES, PAGES, content_of, module_name, pages_of, params_of,
     purpose_of, title_of,
 )
@@ -52,7 +53,7 @@ L = {
             "Приложение: «Легковесная платформа совместной работы для "
             "трансграничной торговли России и Китая» — веб-клиент.",
         ],
-        "note": "> Файл сгенерирован автоматически из `portal/pages.py` "
+        "note": "> Файл сгенерирован автоматически из `core/pages.py` "
                 "командой `python tools/gen_docs.py`. "
                 "Не редактируйте вручную.",
         "summary": "## Сводка",
@@ -80,7 +81,7 @@ L = {
             "",
             "应用：「中俄跨境贸易轻量协同平台」——Web 客户端。",
         ],
-        "note": "> 本文件由 `portal/pages.py` 自动生成"
+        "note": "> 本文件由 `core/pages.py` 自动生成"
                 "（`python tools/gen_docs.py`），请勿手工编辑。",
         "summary": "## 概览",
         "sum_head": ["指标", "数值"],
@@ -108,7 +109,7 @@ L = {
             "Application: “Lightweight collaboration platform for "
             "Russia–China cross-border trade” — web client.",
         ],
-        "note": "> Generated automatically from `portal/pages.py` by "
+        "note": "> Generated automatically from `core/pages.py` by "
                 "`python tools/gen_docs.py`. Do not edit by hand.",
         "summary": "## Summary",
         "sum_head": ["Metric", "Value"],
@@ -171,7 +172,7 @@ def render(lang):
             out.append(f"- **{t['lbl_route']}{s}** `{p['name']}`")
             if p["view"]:
                 out.append(f"- **{t['lbl_view']}{s}** "
-                           f"`portal.views.{p['view']}`")
+                           f"`{app_of(p)}.views.{p['view']}`")
             else:
                 out.append(f"- **{t['lbl_view']}{s}** `django.contrib.admin`")
             out.append(f"- **{t['lbl_access']}{s}** "

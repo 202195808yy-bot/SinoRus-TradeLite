@@ -10,9 +10,9 @@
     <h1>{{ ui.hero_title|safe }}</h1>
     <p class="lead">{{ ui.hero_lead }}</p>
     <div class="hero-actions">
-      <a class="btn btn-primary" href="{% url 'portal:login' %}">{{ ui.btn_login }}</a>
-      <a class="btn" href="{% url 'portal:register' %}">{{ ui.btn_register }}</a>
-      <a class="btn btn-ghost" href="{% url 'portal:about' %}">{{ ui.btn_about }}</a>
+      <a class="btn btn-primary" href="{% url 'accounts:login' %}">{{ ui.btn_login }}</a>
+      <a class="btn" href="{% url 'accounts:register' %}">{{ ui.btn_register }}</a>
+      <a class="btn btn-ghost" href="{% url 'core:about' %}">{{ ui.btn_about }}</a>
     </div>
   </header>
 

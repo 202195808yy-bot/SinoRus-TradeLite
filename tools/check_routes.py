@@ -15,7 +15,7 @@ django.setup()
 
 from django.urls import NoReverseMatch, get_resolver, reverse  # noqa: E402
 
-from portal.pages import PAGES  # noqa: E402
+from core.pages import PAGES, app_of  # noqa: E402
 
 
 def walk(patterns, prefix=""):
@@ -40,7 +40,7 @@ def main():
 
     print()
     print("=" * 72)
-    print("СВЕРКА С РЕЕСТРОМ СТРАНИЦ (portal/pages.py)")
+    print("СВЕРКА С РЕЕСТРОМ СТРАНИЦ (core/pages.py)")
     print("=" * 72)
     errors = []
     for page in PAGES:
@@ -50,9 +50,10 @@ def main():
             continue
         try:
             if "<int:pk>" in page["path"]:
-                url = reverse("portal:" + page["name"], kwargs={"pk": 1})
+                url = reverse("%s:%s" % (app_of(page), page["name"]),
+                              kwargs={"pk": 1})
             else:
-                url = reverse("portal:" + page["name"])
+                url = reverse("%s:%s" % (app_of(page), page["name"]))
         except NoReverseMatch as exc:
             errors.append(f"  [ОШИБКА] {page['name']}: {exc}")
             continue
@@ -71,11 +72,11 @@ def main():
         print(f"\nПРОВЕРКА НЕ ПРОЙДЕНА: ошибок {len(errors)}")
         sys.exit(1)
 
-    portal_routes = [r for r in routes
-                     if not r[0].startswith("admin/")]
+    app_routes = [r for r in routes
+                  if not r[0].startswith("admin/")]
     print(f"Страниц в реестре: {len(PAGES)} "
           f"(из них с собственным маршрутом: {len(declared)})")
-    print(f"Маршрутов приложения portal: {len(portal_routes)}")
+    print(f"Маршрутов приложений проекта: {len(app_routes)}")
     print("ПРОВЕРКА ПРОЙДЕНА: все страницы реестра имеют рабочий маршрут.")
 
 

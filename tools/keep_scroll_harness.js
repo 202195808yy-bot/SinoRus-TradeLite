@@ -150,7 +150,7 @@ function check(name, fn) {
 }
 
 // 1. Прокрутка панели TradeHub запоминается.
-check('portal: прокрутка сохраняется в sessionStorage', () => {
+check('фронтенд: прокрутка сохраняется в sessionStorage', () => {
     const backing = new Map();
     const sidebar = makePanel({ attrs: { 'data-keep-scroll': 'sidebar' } });
     const page = loadPage([sidebar], backing);
@@ -164,7 +164,7 @@ check('portal: прокрутка сохраняется в sessionStorage', () 
 });
 
 // 2. После перехода положение возвращается.
-check('portal: положение возвращается после перехода', () => {
+check('фронтенд: положение возвращается после перехода', () => {
     const backing = new Map();
     const before = makePanel({ attrs: { 'data-keep-scroll': 'sidebar' } });
     const page1 = loadPage([before], backing);
@@ -182,7 +182,7 @@ check('portal: положение возвращается после перех
 });
 
 // 3. Клик сразу после прокрутки не теряется (pagehide).
-check('portal: pagehide успевает сохранить последнее положение', () => {
+check('фронтенд: pagehide успевает сохранить последнее положение', () => {
     const backing = new Map();
     const sidebar = makePanel({ attrs: { 'data-keep-scroll': 'sidebar' } });
     const page = loadPage([sidebar], backing);

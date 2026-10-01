@@ -1,13 +1,13 @@
 {% comment %}
 Универсальный рендерер блоков данных страницы.
-Блоки собираются провайдерами portal/datasets.py:
+Блоки собираются провайдерами <app>/datasets.py:
   kpi    — плитки показателей;
   table  — таблица (колонки + строки из ячеек);
   fields — карточка «поле — значение»;
   list   — компактный список.
-Подписи блоков переведены на текущий язык в portal.views._page().
+Подписи блоков переведены на текущий язык в core.views._page().
 {% endcomment %}
-{% load portal_extras %}
+{% load core_extras %}
 
 {% if mode == "demo" %}
 <p class="notice">{{ ui.demo_notice }}</p>

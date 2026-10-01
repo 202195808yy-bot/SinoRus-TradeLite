@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""检查页面与模型（portal/datasets.py）的对接情况。
+"""检查页面与模型（<app>/datasets.py）的对接情况。
 
 显示哪些页面从模型获取数据、哪些仍停留在
 原型状态，并核对提供器注册表与页面注册表的
@@ -18,13 +18,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "tradehub.settings")
 django.setup()
 
-from portal.datasets import PAGE_DATA, coverage          # noqa: E402
-from portal.pages import PAGE_BY_NAME, PAGES             # noqa: E402
+from core.datasets import PAGE_DATA, coverage            # noqa: E402
+from core.pages import PAGE_BY_NAME, PAGES               # noqa: E402
 
 
 def main():
     print("=" * 72)
-    print("ПОДКЛЮЧЕНИЕ СТРАНИЦ К МОДЕЛЯМ (portal/datasets.py)")
+    print("ПОДКЛЮЧЕНИЕ СТРАНИЦ К МОДЕЛЯМ (<app>/datasets.py)")
     print("=" * 72)
 
     errors = []
