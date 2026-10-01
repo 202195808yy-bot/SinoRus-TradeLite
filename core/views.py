@@ -16,10 +16,6 @@ from core.pages import PAGE_BY_NAME, PAGES, app_of, title_of, purpose_of, conten
 from core.datasets import provider_for
 
 
-from core.i18n import DEFAULT_LANG, normalize, translate_blocks
-from core.pages import PAGE_BY_NAME, PAGES, app_of, title_of, purpose_of, content_of, params_of, module_name
-from core.datasets import provider_for
-
 def set_language_view(request, code):
     """记住所选语言并返回原始页面。
 
@@ -82,24 +78,6 @@ def _page(request, name, **extra):
         context["mode"] = data.get("mode")
     context.update(extra)
     return render(request, "portal/page.html", context)
-
-
-def set_language_view(request, code):
-    """记住所选语言并返回原始页面。
-
-        之所以需要单独的路由，是因为 Django 管理面板会把地址中的
-        ``?lang=`` 参数当作未知的列表
-        过滤器并返回多余的重定向。而这里地址保持
-        干净，选择则保存在会话中。
-    """
-    lang = normalize(code)
-    if lang:
-        request.session["lang"] = lang
-    target = request.GET.get("next") or "/"
-    # 防范开放重定向：仅允许自身的路径
-    if not target.startswith("/") or target.startswith("//"):
-        target = "/"
-    return redirect(target)
 
 
 def index_view(request):

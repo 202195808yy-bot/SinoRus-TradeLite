@@ -18,7 +18,7 @@ a deal (seller, buyer, carrier, customs broker) onto a single timeline.
 | 2 | Application page descriptions (document) | done |
 | 3 | Application models (document, 2 languages) | done |
 | 4 | Application page templates | done |
-| 5 | Application users | — |
+| 5 | Application users: design (document, 2 languages) | done; implementation follows |
 
 ## Mobile client
 
@@ -114,6 +114,8 @@ course_project/
 │   ├── Модели_приложения_CN.docx               same in Chinese (28 pp.)
 │   ├── Представления_и_данные.docx             stage 4 document, ПЗ (26 pp., 43 pages, 45 models)
 │   ├── Представления_и_данные_CN.docx          same in Chinese (26 pp.)
+│   ├── Пользователи_приложения.docx            stage 5 document, ПЗ (33 pp., 6 roles, 3 access levels)
+│   ├── Пользователи_приложения_CN.docx         same in Chinese (29 pp.)
 │   ├── 移动应用开发课设_学科领域与功能需求（俄文）.docx   mobile client, ПЗ (36 pp., 48 requirements)
 │   ├── 移动应用开发课设_学科领域与功能需求（中文）.docx   same in Chinese (30 pp.)
 │   └── mobile/                mobile client document in markdown, three languages
@@ -345,6 +347,40 @@ from the code.
 python tools/check_data.py     # 37 pages with data, 6 prototypes
 python manage.py test core.tests   # 141 tests: models, pages, languages, compatibility
 ```
+
+## Application users
+
+Stage 5 designs the user subsystem. The stage document is
+`docs/Пользователи_приложения.docx` (ПЗ, 33 pp.) with a Chinese
+counterpart `docs/Пользователи_приложения_CN.docx` (29 pp.).
+
+The design builds on the `access` attribute of the page registry
+`core/pages.py`, which has existed since stage — and has never been
+enforced.
+
+| Item | Value |
+|---|---|
+| Page access levels | `public` (5 pages), `auth` (34), `role` (4) |
+| Participant roles | 6 (`Membership.Role`) |
+| Permission matrices | role × module, role × action |
+| Proposed model-level permissions | 13 on 11 models |
+| Place of the access check | the shared page builder `core/views.py` |
+
+Design decisions:
+
+* a role lives in `Membership` (user — enterprise — role), so one person
+  can work for several enterprises with different roles;
+* the access check is centralised instead of being spread as decorators
+  over 43 views: `public` for everyone, `auth` for signed-in users,
+  `role` for the enterprise administrator only (otherwise 403, and for an
+  anonymous visitor a 302 to `accounts:login` with a `next` parameter);
+* significant operations are protected by custom permissions
+  (`Meta.permissions`) granted to role-based groups;
+* the demo mode of stage 4 is switched off — otherwise the access check
+  can be bypassed with a session-less request.
+
+The design decisions are recorded in the document; implementing them in
+code is the next step.
 
 ## Interface language
 
